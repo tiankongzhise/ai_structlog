@@ -1,0 +1,14 @@
+[run]
+# 只统计你的项目源码：src/tkzs_structlog
+source = src/tkzs_structlog
+branch = True
+parallel = true
+concurrency = multiprocessing
+
+# 忽略测试代码、无关文件
+omit =
+  tests/*
+  */tests/*
+  */test_*.py
+  */__init__.py
+  */_version.py

@@ -11,3 +11,7 @@ wheels/
 
 产品文档/
 技术文档/
+
+*_test*.txt
+
+htmlcov/
