@@ -6,6 +6,7 @@ C2: 控制台和文件输出处理器。
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -120,7 +121,8 @@ class ColoredConsoleHandler(logging.StreamHandler):
             record.levelname = f"{color}{levelname}{self.RESET}"
 
             msg = self.format(record)
-            self.stream.write(msg + self.stream.sep)
+            # 使用 os.linesep 确保跨平台兼容性
+            self.stream.write(msg + os.linesep)
             self.flush()
         except Exception:
             self.handleError(record)

@@ -222,3 +222,226 @@ class TestFilterProcessor:
         event_dict = {"username": "john"}
         result = FilterProcessor(None, "info", event_dict)
         assert result == event_dict
+
+
+class TestTypeNameCaching:
+    """测试类型名称缓存"""
+
+    def test_get_type_name(self):
+        """测试获取类型名称"""
+        from tkzs_structlog.extensions.processors import _get_type_name
+
+        result = _get_type_name("hello")
+        assert result == "str"
+
+        result = _get_type_name(123)
+        assert result == "int"
+
+        result = _get_type_name([1, 2, 3])
+        assert result == "list"
+
+
+class TestTruncatorAdvanced:
+    """测试截断器高级功能"""
+
+    def test_set_config_invalid_regex(self):
+        """测试设置无效正则"""
+        truncator = CustomTruncator()
+        # 无效的正则表达式不应该崩溃
+        truncator.set_config(ignore_fields_regex="[invalid(")
+        assert truncator._compiled_regex is None
+
+    def test_set_config_all_params(self):
+        """测试设置所有参数"""
+        truncator = CustomTruncator()
+        truncator.set_config(
+            max_depth=5,
+            str_max_length=128,
+            seq_max_elements=100,
+            dict_max_pairs=50,
+            ignore_types=["MyClass"],
+            ignore_fields=["password"],
+            ignore_fields_pattern=["*_secret"],
+            ignore_fields_regex=r"^.*$",
+            depth_warning=False,
+        )
+        assert truncator.max_depth == 5
+        assert truncator.maxstring == 128
+        assert truncator.ignore_types == ["MyClass"]
+
+    def test_repr_iter_depth_warning(self):
+        """测试可迭代对象的深度警告"""
+        truncator = CustomTruncator()
+        truncator.maxlist = 4
+        truncator.max_depth = 2
+        truncator.depth_warning = True
+
+        long_list = list(range(100))
+        # level >= max_depth 时应该显示警告
+        result = truncator.repr_iter(long_list, level=3, maxlen=4, method=repr)
+        assert "MAX_DEPTH" in result
+
+    def test_repr_max_depth_warning_disabled(self):
+        """测试深度警告禁用"""
+        truncator = CustomTruncator()
+        truncator.max_depth = 2
+        truncator.depth_warning = False
+
+        deep_obj = {"level": 1}
+        result = truncator.repr(deep_obj, level=3)
+        assert "MAX_DEPTH" not in result
+
+    def test_truncate_processor_with_kwargs(self):
+        """测试截断 kwargs"""
+        config = {
+            "extensions": {
+                "log_truncate": {
+                    "enable": True,
+                    "str_max_length": 20,
+                    "max_depth": 3,
+                }
+            }
+        }
+        set_global_config(config)
+
+        event_dict = {"kwargs": "x" * 100}
+        result = TruncateProcessor(None, "info", event_dict)
+        assert len(result["kwargs"]) <= 23  # 10 + ... + 10
+
+    def test_truncate_processor_with_return_value(self):
+        """测试截断 return_value"""
+        config = {
+            "extensions": {
+                "log_truncate": {
+                    "enable": True,
+                    "str_max_length": 10,
+                    "max_depth": 3,
+                }
+            }
+        }
+        set_global_config(config)
+
+        event_dict = {"return_value": "x" * 100}
+        result = TruncateProcessor(None, "info", event_dict)
+        assert len(result["return_value"]) == 13
+
+    def test_truncate_processor_ignore_ignored_fields(self):
+        """测试忽略已配置的字段"""
+        config = {
+            "extensions": {
+                "log_truncate": {
+                    "enable": True,
+                    "str_max_length": 10,
+                    "max_depth": 3,
+                    "ignore_fields": ["args"],
+                }
+            }
+        }
+        set_global_config(config)
+
+        event_dict = {"args": "x" * 100}
+        result = TruncateProcessor(None, "info", event_dict)
+        # args 应该被忽略，不截断
+        assert result["args"] == "x" * 100
+
+    def test_truncate_processor_ignore_ignored_fields_pattern(self):
+        """测试忽略通过模式配置的字段"""
+        config = {
+            "extensions": {
+                "log_truncate": {
+                    "enable": True,
+                    "str_max_length": 10,
+                    "max_depth": 3,
+                    "ignore_fields_pattern": ["*_secret"],
+                }
+            }
+        }
+        set_global_config(config)
+
+        event_dict = {"my_secret": "x" * 100}
+        result = TruncateProcessor(None, "info", event_dict)
+        # my_secret 应该被忽略，不截断
+        assert result["my_secret"] == "x" * 100
+
+    def test_sensitive_data_processor_no_fields(self):
+        """测试无敏感字段配置"""
+        config = {"extensions": {"sensitive_fields": []}}
+        set_global_config(config)
+
+        event_dict = {"username": "john"}
+        result = SensitiveDataProcessor(None, "info", event_dict)
+        assert result == event_dict
+
+    def test_sensitive_data_processor_builtin_rules(self):
+        """测试内置脱敏规则"""
+        config = {"extensions": {"sensitive_fields": ["password", "phone", "id_card", "bank_card"]}}
+        set_global_config(config)
+
+        event_dict = {
+            "password": "secret123",
+            "phone": "13812345678",
+            "id_card": "110101199001011234",
+            "bank_card": "6222021234567890",
+        }
+        result = SensitiveDataProcessor(None, "info", event_dict)
+        assert result["password"] == "******"
+        assert result["phone"].startswith("138")
+        assert result["phone"].endswith("5678")
+        assert result["id_card"].startswith("110101")
+        assert result["bank_card"].startswith("6222")
+
+    def test_sensitive_data_processor_non_string_value(self):
+        """测试非字符串值不脱敏"""
+        config = {"extensions": {"sensitive_fields": ["password"]}}
+        set_global_config(config)
+
+        event_dict = {"password": 123}  # 不是字符串
+        result = SensitiveDataProcessor(None, "info", event_dict)
+        assert result["password"] == 123
+
+    def test_filter_processor_empty_exclude(self):
+        """测试空排除列表"""
+        config = {"extensions": {"filter_rules": {"exclude": []}}}
+        set_global_config(config)
+
+        event_dict = {"username": "john"}
+        result = FilterProcessor(None, "info", event_dict)
+        assert result == event_dict
+
+    def test_filter_processor_empty_include(self):
+        """测试空包含列表"""
+        config = {"extensions": {"filter_rules": {"include": []}}}
+        set_global_config(config)
+
+        event_dict = {"username": "john"}
+        result = FilterProcessor(None, "info", event_dict)
+        assert result == event_dict
+
+    def test_processor_non_dict_input(self):
+        """测试非字典输入"""
+        # TruncateProcessor
+        result = TruncateProcessor(None, "info", "not a dict")
+        assert result == "not a dict"
+
+        # SensitiveDataProcessor
+        result = SensitiveDataProcessor(None, "info", "not a dict")
+        assert result == "not a dict"
+
+        # FilterProcessor
+        result = FilterProcessor(None, "info", "not a dict")
+        assert result == "not a dict"
+
+    def test_processor_no_global_config(self):
+        """测试无全局配置"""
+        set_global_config({})
+
+        # 应该直接返回原始值
+        event_dict = {"key": "value"}
+        result = TruncateProcessor(None, "info", event_dict)
+        assert result == event_dict
+
+        result = SensitiveDataProcessor(None, "info", event_dict)
+        assert result == event_dict
+
+        result = FilterProcessor(None, "info", event_dict)
+        assert result == event_dict

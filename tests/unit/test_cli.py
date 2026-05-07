@@ -50,6 +50,18 @@ class TestCLIValidate:
         assert success is False
         assert len(errors) > 0
 
+    def test_validate_config_impl_validation_error(self, tmp_path):
+        """测试配置验证错误"""
+        from tkzs_structlog.api.cli import _validate_config_impl
+
+        # 创建无效配置（缺少必需字段）
+        config_file = tmp_path / "invalid_config.json"
+        config_file.write_text('{"version": "99.0"}', encoding="utf-8")
+
+        success, errors = _validate_config_impl(str(config_file))
+        assert success is False
+        assert len(errors) > 0
+
 
 class TestCLIGenerate:
     """测试CLI生成功能"""
@@ -93,6 +105,22 @@ class TestCLIGenerate:
         for version in ["1.0", "2.0", "2.1", "3.0", "4.0"]:
             content = _generate_config_impl(None, version=version)
             assert version in content
+
+    def test_generate_config_impl_no_env(self):
+        """测试无环境时生成"""
+        from tkzs_structlog.api.cli import _generate_config_impl
+
+        content = _generate_config_impl(None, env=None)
+        assert "default" in content
+
+    def test_generate_config_impl_to_nested_path(self, tmp_path):
+        """测试生成到嵌套路径"""
+        from tkzs_structlog.api.cli import _generate_config_impl
+
+        output_path = tmp_path / "subdir" / "nested" / "config.json"
+        content = _generate_config_impl(str(output_path))
+
+        assert output_path.exists()
 
 
 class TestCLIMain:

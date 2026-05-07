@@ -302,3 +302,70 @@ class TestLoadConfigFileEdgeCases:
         """测试 StructlogConfigFileNotFoundError 正确重抛"""
         with pytest.raises(StructlogConfigFileNotFoundError):
             load_config_file("/nonexistent/path/config.json")
+
+    def test_load_config_with_env_var(self, monkeypatch):
+        """测试环境变量指定配置文件"""
+        import tempfile
+        import os
+
+        tmpdir = tempfile.mkdtemp()
+        try:
+            # 创建环境配置文件
+            env_file = Path(tmpdir) / "structlog_config.test_env.json"
+            env_file.write_text('{"version": "1.0", "logger_name": "env_test"}', encoding="utf-8")
+
+            # 设置环境变量
+            monkeypatch.setenv("STRUCTLOG_ENV", "test_env")
+            monkeypatch.setenv("STRUCTLOG_CONFIG_DIR", tmpdir)
+
+            # 使用临时配置路径
+            config = load_config(None)
+            # 验证返回的是字典
+            assert isinstance(config, dict)
+        finally:
+            # 手动清理
+            import shutil
+            if Path(tmpdir).exists():
+                shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_load_config_use_env_false(self, monkeypatch):
+        """测试禁用环境配置"""
+        import os
+
+        monkeypatch.setenv("STRUCTLOG_ENV", "some_env")
+
+        # 传入 use_env=False，应该忽略环境变量
+        config = load_config(None, use_env=False, use_default=True)
+        assert isinstance(config, dict)
+
+    def test_load_config_use_default_false(self, tmp_path):
+        """测试禁用默认配置"""
+        # 创建自定义配置
+        config_file = tmp_path / "custom.json"
+        config_file.write_text('{"version": "1.0", "custom_field": "value"}', encoding="utf-8")
+
+        # 禁用默认配置合并
+        config = load_config(str(config_file), use_default=False)
+        # 应该只返回自定义配置
+        assert "custom_field" in config
+        assert "handlers" not in config
+
+    def test_get_env_config_path_with_existing_file(self, tmp_path, monkeypatch):
+        """测试获取存在的环境配置路径"""
+        env_file = tmp_path / "structlog_config.dev.json"
+        env_file.write_text('{"version": "1.0"}', encoding="utf-8")
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("STRUCTLOG_ENV", "dev")
+
+        result = get_env_config_path()
+        assert result is not None
+        assert "dev" in str(result)
+
+    def test_get_env_config_path_nonexistent_env(self, tmp_path, monkeypatch):
+        """测试不存在的环境配置"""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("STRUCTLOG_ENV", "nonexistent_env")
+
+        result = get_env_config_path()
+        assert result is None

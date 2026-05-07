@@ -377,7 +377,7 @@ class TestCustomRotatingFileHandler:
         handler.cleanup()
 
         # 应该只剩下5个文件
-        rotated_files = list(tmp_path.glob("test.*"))
+        rotated_files = list(tmp_path.glob("test.*.log"))
         assert len(rotated_files) == 5
 
     def test_cleanup_by_days(self, tmp_path):
