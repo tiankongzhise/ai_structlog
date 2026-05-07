@@ -241,3 +241,46 @@ class TestHandlerEdgeCases:
 
         root_logger = logging.getLogger()
         assert len(root_logger.handlers) >= 3
+
+    def test_file_handler_permission_error(self, tmp_path):
+        """测试文件处理器权限错误抛出 StructlogHandlerError"""
+        from unittest.mock import patch
+
+        from tkzs_structlog.exceptions import StructlogHandlerError
+        from tkzs_structlog.extensions.handlers import setup_file_handler
+
+        log_file = tmp_path / "test.log"
+        config = {"enable": True, "file_path": str(log_file)}
+
+        # 模拟 mkdir 成功但 FileHandler 抛出 PermissionError
+        with patch("tkzs_structlog.extensions.handlers.logging.FileHandler", side_effect=PermissionError("access denied")):
+            with pytest.raises(StructlogHandlerError) as exc_info:
+                setup_file_handler(config)
+
+        assert "Permission denied" in str(exc_info.value)
+
+    def test_colored_handler_emit_exception(self):
+        """测试 emit 中发生异常时调用 handleError"""
+        from unittest.mock import patch
+
+        from tkzs_structlog.extensions.handlers import ColoredConsoleHandler
+
+        output = StringIO()
+        handler = ColoredConsoleHandler(output)
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
+        )
+
+        # 模拟 stream.write 抛出异常
+        with patch.object(output, "write", side_effect=OSError("stream error")):
+            with patch.object(handler, "handleError") as mock_handle_error:
+                handler.emit(record)
+                # handleError 应该被调用
+                mock_handle_error.assert_called_once_with(record)

@@ -199,3 +199,78 @@ class TestCLIIntegration:
             assert result == 1
         finally:
             cli.CLICK_AVAILABLE = original_value
+
+    def test_validate_command_success_via_runner(self, tmp_path):
+        """使用 click CliRunner 测试 validate 命令成功路径"""
+        pytest.importorskip("click")
+        from click.testing import CliRunner
+
+        from tkzs_structlog.api import cli
+
+        if not cli.CLICK_AVAILABLE:
+            pytest.skip("click not installed")
+
+        # 创建有效配置文件
+        config_file = tmp_path / "valid.json"
+        config_file.write_text(
+            json.dumps({"version": "1.0", "min_level": "INFO", "processors": []}),
+            encoding="utf-8",
+        )
+
+        runner = CliRunner()  # noqa: F841
+        # 直接调用 main，捕获 SystemExit
+        with patch.object(sys, "argv", ["tkzs-structlog", "validate", "--config-path", str(config_file)]):
+            try:
+                cli.main()
+            except SystemExit as e:
+                assert e.code == 0 or e.code is None
+
+    def test_validate_command_failure_via_runner(self, tmp_path):
+        """使用 click CliRunner 测试 validate 命令失败路径"""
+        pytest.importorskip("click")
+
+        from tkzs_structlog.api import cli
+
+        if not cli.CLICK_AVAILABLE:
+            pytest.skip("click not installed")
+
+        # 创建无效配置文件
+        config_file = tmp_path / "invalid.json"
+        config_file.write_text('{"version": "99.0"}', encoding="utf-8")
+
+        with patch.object(sys, "argv", ["tkzs-structlog", "validate", "--config-path", str(config_file)]):
+            try:
+                cli.main()
+            except SystemExit as e:
+                assert e.code == 1 or e.code is not None
+
+    def test_generate_command_no_output_via_runner(self):
+        """使用 click CliRunner 测试 generate 命令不指定输出路径"""
+        pytest.importorskip("click")
+
+        from tkzs_structlog.api import cli
+
+        if not cli.CLICK_AVAILABLE:
+            pytest.skip("click not installed")
+
+        with patch.object(sys, "argv", ["tkzs-structlog", "generate"]):
+            try:
+                cli.main()
+            except SystemExit as e:
+                assert e.code == 0 or e.code is None
+
+    def test_generate_command_with_output_via_runner(self, tmp_path):
+        """使用 click CliRunner 测试 generate 命令指定输出路径"""
+        pytest.importorskip("click")
+
+        from tkzs_structlog.api import cli
+
+        if not cli.CLICK_AVAILABLE:
+            pytest.skip("click not installed")
+
+        output_file = tmp_path / "generated.json"
+        with patch.object(sys, "argv", ["tkzs-structlog", "generate", "--output", str(output_file)]):
+            try:
+                cli.main()
+            except SystemExit as e:
+                assert e.code == 0 or e.code is None

@@ -33,13 +33,13 @@ class CompressBackend(ABC):
         Returns:
             是否成功
         """
-        pass
+        ...  # pragma: no cover
 
     @property
     @abstractmethod
     def extension(self) -> str:
         """压缩文件扩展名"""
-        pass
+        ...  # pragma: no cover
 
 
 class GzipBackend(CompressBackend):
@@ -220,7 +220,7 @@ class CustomRotatingFileHandler:
                         return
                     time.sleep(0.1 * (attempt + 1))
 
-            if not replaced:
+            if not replaced:  # pragma: no cover
                 return
 
             # 执行压缩

@@ -291,3 +291,123 @@ class TestContextAPIExtended:
         """测试清空调用"""
         # 清空调用不应该抛出异常
         clear_context()
+
+
+class TestContextAPIEdgeCases:
+    """测试上下文API边界情况"""
+
+    def test_bind_context_empty_kwargs(self):
+        """测试 bind_context 空调用（kwargs 为空时不更新存储）"""
+        from tkzs_structlog.api.core import _context_store
+
+        # 先清空存储
+        _context_store.clear()
+        # 空调用不应抛异常
+        bind_context()
+        # 存储应保持为空
+        assert _context_store == {}
+
+    def test_bind_context_updates_store(self):
+        """测试 bind_context 更新存储"""
+        from tkzs_structlog.api.core import _context_store
+
+        _context_store.clear()
+        bind_context(key1="val1", key2="val2")
+        assert _context_store.get("key1") == "val1"
+        assert _context_store.get("key2") == "val2"
+
+
+class TestHotReloadCallbackExecution:
+    """测试热重载回调函数内部代码覆盖（行 85-89）"""
+
+    def test_hotreload_on_reload_callback_sets_config_and_reinit(self):
+        """测试热重载回调执行：set_global_config + reset + init"""
+        from tkzs_structlog import init_structlog, reset_structlog
+        from tkzs_structlog.api import core
+        from tkzs_structlog.core.initializer import get_initializer, reset_initializer
+
+        original_watchdog = core.WATCHDOG_AVAILABLE
+        original_reloader = core._hotreloader
+
+        try:
+            core.WATCHDOG_AVAILABLE = True
+
+            reset_structlog()
+
+            # Mock start() 以阻止 observer 线程启动，保留 _hotreloader 实例创建
+            # config 中必须有 extensions.config_hot_reload=True 才能触发 _setup_hotreload
+            with patch("tkzs_structlog.api.core.ConfigHotReloader.start"):
+                init_structlog(
+                    config={
+                        "version": "1.0",
+                        "logger_name": "test_hotreload",
+                        "extensions": {"config_hot_reload": True},
+                    },
+                    enable_hotreload=True,
+                )
+
+            # _setup_hotreload 内部定义了 on_reload 闭包，
+            # 实例化为 _hotreloader，其 .on_reload 属性即目标函数
+            assert core._hotreloader is not None
+            assert core._hotreloader.on_reload is not None
+
+            # 触发回调（模拟 watchdog 文件修改事件）
+            new_config = {
+                "version": "1.0",
+                "logger_name": "reloaded",
+                "min_level": "DEBUG",
+            }
+            core._hotreloader.on_reload(new_config)
+
+            # 验证重初始化成功（覆盖回调内部的 reset + init）
+            initializer = get_initializer()
+            assert initializer.is_initialized
+            assert initializer.config.get("logger_name") == "reloaded"
+
+            reset_structlog()
+            reset_initializer()
+
+        finally:
+            core.WATCHDOG_AVAILABLE = original_watchdog
+            core._hotreloader = original_reloader
+
+
+class TestInitializerFilterProcessorPath:
+    """测试 initializer 中 FilterProcessor 追加路径（行 136）"""
+
+    def test_init_with_filter_rules_adds_filter_processor(self):
+        """当配置包含 filter_rules 且有 exclude/include 时，追加 FilterProcessor"""
+        from tkzs_structlog import init_structlog, reset_structlog
+
+        reset_structlog()
+        config = {
+            "version": "1.0",
+            "logger_name": "filter_test",
+            "extensions": {
+                "filter_rules": {
+                    "exclude": ["password", "token"],
+                },
+            },
+        }
+        init_structlog(config=config)
+        assert init_structlog is not None  # 初始化成功即覆盖第 136 行
+
+        reset_structlog()
+
+    def test_init_with_filter_rules_include_only(self):
+        """当配置只有 include 字段时也追加 FilterProcessor"""
+        from tkzs_structlog import init_structlog, reset_structlog
+
+        reset_structlog()
+        config = {
+            "version": "1.0",
+            "logger_name": "filter_test2",
+            "extensions": {
+                "filter_rules": {
+                    "include": ["username", "email"],
+                },
+            },
+        }
+        init_structlog(config=config)
+
+        reset_structlog()

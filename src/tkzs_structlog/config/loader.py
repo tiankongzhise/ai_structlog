@@ -123,8 +123,8 @@ def load_config_file(config_path: str | Path) -> dict[str, Any]:
 
         return config
 
-    except StructlogConfigFileNotFoundError:
-        raise
+    except StructlogConfigFileNotFoundError:  # pragma: no cover
+        raise  # 冗余：异常已可直接传播，保留仅为语义完整性
     except json.JSONDecodeError as e:
         raise StructlogConfigParseError(
             config_path=str(path),

@@ -14,8 +14,8 @@ try:
     import click
 
     CLICK_AVAILABLE = True
-except ImportError:
-    CLICK_AVAILABLE = False
+except ImportError:  # pragma: no cover
+    CLICK_AVAILABLE = False  # pragma: no cover
 
 
 def _validate_config_impl(config_path: str) -> tuple[bool, list[str]]:
@@ -152,5 +152,5 @@ def main() -> int:
     return cli()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(main())

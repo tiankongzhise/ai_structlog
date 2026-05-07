@@ -181,6 +181,38 @@ class TestConfigHotReloader:
         # 停止未启动的重载器不应该出错
         reloader.stop()
 
+    def test_on_modified_with_none_callback_does_nothing(self, tmp_path):
+        """测试 on_reload=None 时跳过回调（行 45 覆盖）"""
+        if not WATCHDOG_AVAILABLE:
+            pytest.skip("watchdog is not available")
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"version": "1.0"}', encoding="utf-8")
+
+        handler = ConfigFileHandler(config_file, on_reload=None)
+        event = MagicMock()
+        event.src_path = str(config_file)
+
+        # on_reload is None，if 分支不执行，不抛异常
+        handler.on_modified(event)
+
+    def test_stop_after_start_cleans_up_observer(self, tmp_path):
+        """测试 start 后 stop 执行完整清理路径（行 92 覆盖）"""
+        if not WATCHDOG_AVAILABLE:
+            pytest.skip("watchdog is not available")
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"version": "1.0"}', encoding="utf-8")
+
+        reloader = ConfigHotReloader(config_file)
+        reloader.start()
+        assert reloader._observer is not None
+
+        reloader.stop()
+        # 停止后 observer 应被清空
+        assert reloader._observer is None
+        assert not reloader.is_running
+
 
 class TestReloadProcessor:
     """测试处理器重载"""

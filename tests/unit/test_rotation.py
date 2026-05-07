@@ -611,3 +611,285 @@ class TestRotationEdgeCases:
         handler.rotate()
         assert log_file.exists()
         assert log_file.read_text(encoding="utf-8") == "keep"
+
+    def test_should_rotate_by_time_non_midnight_when(self, tmp_path):
+        """rotate_when 非 MIDNIGHT 时不触发时间轮转（该分支暂未实现）"""
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        config = {
+            "file_path": str(tmp_path / "test.log"),
+            "custom_rotate": {"enable": True, "rotate_when": "H"},
+        }
+        handler = CustomRotatingFileHandler(config)
+        # 非 MIDNIGHT 的 rotate_when 暂未实现，应返回 False
+        assert handler._should_rotate_by_time() is False
+
+    def test_should_rotate_by_time_midnight_trigger(self, tmp_path):
+        """零点时刻触发时间轮转"""
+        from datetime import datetime
+        from unittest.mock import patch
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        config = {
+            "file_path": str(tmp_path / "test.log"),
+            "custom_rotate": {"enable": True, "rotate_when": "MIDNIGHT"},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 模拟当前时间为零点
+        midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        with patch("tkzs_structlog.extensions.rotation.datetime") as mock_dt:
+            mock_dt.now.return_value = midnight
+            mock_dt.fromtimestamp.side_effect = datetime.fromtimestamp
+            result = handler._should_rotate_by_time()
+        assert result is True
+
+    def test_should_rotate_by_time_cross_day(self, tmp_path):
+        """跨天时触发时间轮转"""
+        from datetime import datetime, timedelta
+        from unittest.mock import patch
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        config = {
+            "file_path": str(tmp_path / "test.log"),
+            "custom_rotate": {"enable": True, "rotate_when": "MIDNIGHT"},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 设置昨天的轮转时间
+        yesterday = datetime.now() - timedelta(days=1)
+        handler._last_rotate_time = yesterday.timestamp()
+
+        # 现在是今天（非零点）
+        now = datetime.now().replace(hour=10, minute=0)
+        with patch("tkzs_structlog.extensions.rotation.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromtimestamp.side_effect = datetime.fromtimestamp
+            result = handler._should_rotate_by_time()
+        assert result is True
+
+    def test_compress_file_async_pool_shutdown_fallback(self, tmp_path):
+        """异步线程池关闭时降级为同步压缩"""
+        from unittest.mock import MagicMock, patch
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test content")
+
+        config = {
+            "file_path": str(tmp_path / "main.log"),
+            "custom_rotate": {
+                "enable": True,
+                "compress": True,
+                "compress_async": True,
+            },
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 模拟线程池已关闭（submit 抛 RuntimeError）
+        mock_executor = MagicMock()
+        mock_executor.submit.side_effect = RuntimeError("pool shutdown")
+        handler._compress_executor = mock_executor
+
+        with patch.object(handler, "_do_compress") as mock_do_compress:
+            handler._compress_file(log_file)
+            # 应该降级为同步
+            mock_do_compress.assert_called_once()
+
+    def test_do_compress_exception_keeps_original(self, tmp_path):
+        """_do_compress 异常时保留原文件并记录警告"""
+        from unittest.mock import patch
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test content")
+
+        config = {
+            "file_path": str(tmp_path / "main.log"),
+            "custom_rotate": {"enable": True},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 模拟 compress 方法抛出异常
+        with patch.object(handler._compress_backend, "compress", side_effect=OSError("disk full")):
+            handler._do_compress(log_file, tmp_path / "test.log.gz")
+
+        # 原文件应该仍然存在（因为 compress 失败了，remove 没执行）
+        assert log_file.exists()
+
+    def test_cleanup_unlink_oserror_in_count_cleanup(self, tmp_path):
+        """按数量清理时 unlink 抛 OSError 不中断整体清理"""
+        from unittest.mock import patch
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"current")
+
+        # 创建多个轮转文件
+        for i in range(8):
+            f = tmp_path / f"test.{i:03d}.log"
+            f.write_bytes(b"old")
+            old_time = time.time() - (i * 100)
+            os.utime(f, (old_time, old_time))
+
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {
+                "enable": True,
+                "backup_count": 3,
+                "retain_days": 0,
+            },
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 模拟 unlink 抛出 OSError，验证不会中断
+        original_unlink = Path.unlink
+        call_count = {"n": 0}
+
+        def unlink_with_first_error(self, missing_ok=False):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise OSError("permission denied")
+            return original_unlink(self, missing_ok=missing_ok)
+
+        with patch.object(Path, "unlink", unlink_with_first_error):
+            handler.cleanup()  # 不应该抛出异常
+
+    def test_cleanup_unlink_oserror_in_days_cleanup(self, tmp_path):
+        """按天数清理时 unlink 抛 OSError 不中断整体清理"""
+        from unittest.mock import patch
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"current")
+
+        # 创建两个超期文件
+        for name in ("test.old1.log", "test.old2.log"):
+            f = tmp_path / name
+            f.write_bytes(b"old")
+            old_time = time.time() - (10 * 86400)
+            os.utime(f, (old_time, old_time))
+
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {
+                "enable": True,
+                "backup_count": 0,
+                "retain_days": 7,
+            },
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        original_unlink = Path.unlink
+        call_count = {"n": 0}
+
+        def unlink_with_first_error(self, missing_ok=False):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise OSError("permission denied")
+            return original_unlink(self, missing_ok=missing_ok)
+
+        with patch.object(Path, "unlink", unlink_with_first_error):
+            handler.cleanup()  # 不应该抛出异常
+
+    def test_lz4_backend_compress_with_mock(self, tmp_path):
+        """通过 mock lz4 模块测试 lz4 压缩成功路径"""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock, patch
+
+        from tkzs_structlog.extensions.rotation import Lz4Backend
+
+        src_file = tmp_path / "test.log"
+        src_file.write_bytes(b"test content")
+        dst_file = tmp_path / "test.log.lz4"
+
+        # 创建 mock lz4 模块
+        mock_lz4 = ModuleType("lz4")
+        mock_lz4.frame = MagicMock()
+
+        # mock context manager
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__ = MagicMock(return_value=mock_ctx)
+        mock_ctx.__exit__ = MagicMock(return_value=False)
+        mock_lz4.frame.open.return_value = mock_ctx
+
+        with patch.dict(sys.modules, {"lz4": mock_lz4, "lz4.frame": mock_lz4.frame}):
+            backend = Lz4Backend()
+            result = backend.compress(src_file, dst_file)
+
+        assert result is True
+
+    def test_zstd_backend_compress_with_mock(self, tmp_path):
+        """通过 mock zstandard 模块测试 zstd 压缩成功路径"""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock, patch
+
+        from tkzs_structlog.extensions.rotation import ZstdBackend
+
+        src_file = tmp_path / "test.log"
+        src_file.write_bytes(b"test content")
+        dst_file = tmp_path / "test.log.zst"
+
+        # 创建 mock zstandard 模块
+        mock_zstd_mod = ModuleType("zstandard")
+        mock_compressor = MagicMock()
+        mock_compressor.copy_stream = MagicMock()
+        mock_zstd_cls = MagicMock(return_value=mock_compressor)
+        mock_zstd_mod.ZstdCompressor = mock_zstd_cls
+
+        with patch.dict(sys.modules, {"zstandard": mock_zstd_mod}):
+            backend = ZstdBackend()
+            result = backend.compress(src_file, dst_file)
+
+        assert result is True
+
+    def test_lz4_backend_compress_exception(self, tmp_path):
+        """lz4 压缩异常（非 ImportError）返回 False"""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock, patch
+
+        from tkzs_structlog.extensions.rotation import Lz4Backend
+
+        src_file = tmp_path / "test.log"
+        src_file.write_bytes(b"test")
+        dst_file = tmp_path / "test.log.lz4"
+
+        mock_lz4 = ModuleType("lz4")
+        mock_lz4.frame = MagicMock()
+        mock_lz4.frame.open.side_effect = OSError("lz4 error")
+
+        with patch.dict(sys.modules, {"lz4": mock_lz4, "lz4.frame": mock_lz4.frame}):
+            backend = Lz4Backend()
+            result = backend.compress(src_file, dst_file)
+
+        assert result is False
+
+    def test_zstd_backend_compress_exception(self, tmp_path):
+        """zstd 压缩异常（非 ImportError）返回 False"""
+        import sys
+        from types import ModuleType
+        from unittest.mock import MagicMock, patch
+
+        from tkzs_structlog.extensions.rotation import ZstdBackend
+
+        src_file = tmp_path / "test.log"
+        src_file.write_bytes(b"test")
+        dst_file = tmp_path / "test.log.zst"
+
+        mock_zstd_mod = ModuleType("zstandard")
+        mock_zstd_mod.ZstdCompressor = MagicMock(side_effect=OSError("zstd error"))
+
+        with patch.dict(sys.modules, {"zstandard": mock_zstd_mod}):
+            backend = ZstdBackend()
+            result = backend.compress(src_file, dst_file)
+
+        assert result is False

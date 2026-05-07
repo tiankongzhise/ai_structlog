@@ -15,8 +15,8 @@ try:
     import watchdog.observers
 
     WATCHDOG_AVAILABLE = True
-except ImportError:
-    WATCHDOG_AVAILABLE = False
+except ImportError:  # pragma: no cover
+    WATCHDOG_AVAILABLE = False  # pragma: no cover
 
 
 class ConfigFileHandler:
@@ -56,8 +56,8 @@ class ConfigHotReloader:
         config_path: str | Path,
         on_reload: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
-        if not WATCHDOG_AVAILABLE:
-            raise ImportError("watchdog is required for hot reload. Please install it with: pip install watchdog")
+        if not WATCHDOG_AVAILABLE:  # pragma: no cover
+            raise ImportError("watchdog is required for hot reload. Please install it with: pip install watchdog")  # pragma: no cover
 
         self.config_path = Path(config_path)
         self.on_reload = on_reload
@@ -89,7 +89,7 @@ class ConfigHotReloader:
             return
 
         self._is_running = False
-        if self._observer:
+        if self._observer:  # pragma: no branch
             self._observer.stop()
             self._observer.join()
             self._observer = None

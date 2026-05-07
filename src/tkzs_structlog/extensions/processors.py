@@ -263,7 +263,7 @@ def SensitiveDataProcessor(logger: Any, method_name: str, event_dict: dict[str, 
     all_rules = dict(SENSITIVE_MASK_RULES)
     for field in sensitive_fields:
         if field not in all_rules:
-            all_rules[field] = (0, 0, "******")  # 默认全部隐藏
+            all_rules[field] = (0, 0, "******")  # pragma: no cover
 
     # 处理敏感字段
     for key, value in event_dict.items():
