@@ -96,7 +96,6 @@ class TestProcessorInstantiationError:
 
     def test_instantiation_error(self):
         """测试处理器实例化失败时抛出 StructlogProcessorInstantiateError"""
-        from tkzs_structlog.exceptions import StructlogProcessorInstantiateError
         import sys
         import types
 

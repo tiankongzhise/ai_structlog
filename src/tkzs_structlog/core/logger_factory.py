@@ -5,7 +5,7 @@ D3: 负责创建和管理 structlog 日志器实例。
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 

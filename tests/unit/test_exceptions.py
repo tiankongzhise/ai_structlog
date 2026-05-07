@@ -1,6 +1,5 @@
 """异常模块测试"""
 
-
 from tkzs_structlog.exceptions import (
     StructlogBaseError,
     StructlogConfigError,

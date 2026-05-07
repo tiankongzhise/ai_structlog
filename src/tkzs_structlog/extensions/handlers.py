@@ -14,11 +14,18 @@ from typing import Any
 from tkzs_structlog.exceptions import StructlogHandlerError
 
 
-def setup_console_handler(config: dict[str, Any]) -> None:
+def setup_console_handler(
+    config: dict[str, Any],
+    *,
+    stdlib_bridge: bool = False,
+    renderer: Any | None = None,
+) -> None:
     """设置控制台处理器
 
     Args:
         config: 控制台配置
+        stdlib_bridge: 是否已通过 structlog.stdlib 桥接（使用 ProcessorFormatter）
+        renderer: 桥接时的最终渲染器实例（如 ConsoleRenderer）
     """
     if not config.get("enable", True):
         return
@@ -26,26 +33,28 @@ def setup_console_handler(config: dict[str, Any]) -> None:
     # 获取根日志器
     root_logger = logging.getLogger()
 
-    # 创建控制台处理器
-    handler = logging.StreamHandler(sys.stdout)
+    if stdlib_bridge and renderer is not None:
+        from structlog.stdlib import ProcessorFormatter
 
-    # 设置格式
-    formatter = logging.Formatter(
-        fmt="%(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    handler.setFormatter(formatter)
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(ProcessorFormatter(processor=renderer))
+    else:
+        handler = ColoredConsoleHandler(sys.stdout)
+        formatter = logging.Formatter(
+            fmt="%(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        handler.setFormatter(formatter)
 
-    # 添加处理器
     root_logger.addHandler(handler)
 
-    # 配置 structlog 控制台渲染器
-    if "ConsoleRenderer" not in str(config):
-        # 使用 structlog 的 ConsoleRenderer
-        pass
 
-
-def setup_file_handler(config: dict[str, Any]) -> None:
+def setup_file_handler(
+    config: dict[str, Any],
+    *,
+    stdlib_bridge: bool = False,
+    renderer: Any | None = None,
+) -> None:
     """设置文件处理器
 
     Args:
@@ -75,12 +84,16 @@ def setup_file_handler(config: dict[str, Any]) -> None:
             encoding=encoding,
         )
 
-        # 设置格式
-        formatter = logging.Formatter(
-            fmt="%(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-        handler.setFormatter(formatter)
+        if stdlib_bridge and renderer is not None:
+            from structlog.stdlib import ProcessorFormatter
+
+            handler.setFormatter(ProcessorFormatter(processor=renderer))
+        else:
+            formatter = logging.Formatter(
+                fmt="%(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+            handler.setFormatter(formatter)
 
         # 添加处理器
         root_logger.addHandler(handler)

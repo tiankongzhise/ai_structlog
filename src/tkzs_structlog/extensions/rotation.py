@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import gzip
+import logging
 import os
 import threading
 import time
@@ -14,8 +15,6 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
-from tkzs_structlog.exceptions import StructlogHandlerError
 
 # ==================== 压缩后端抽象 ====================
 
@@ -202,16 +201,27 @@ class CustomRotatingFileHandler:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             rotate_path = self.file_path.with_name(f"{self.file_path.stem}.{timestamp}{self.file_path.suffix}")
 
-            # 原子重命名
-            try:
-                os.replace(self.file_path, rotate_path)
-                self._last_rotate_time = time.time()
-            except OSError as e:
-                raise StructlogHandlerError(
-                    handler_name="file",
-                    reason=f"Failed to rotate file: {str(e)}",
-                    fix_suggestion="Please check file permissions or disk space",
-                )
+            # 原子重命名（失败重试 3 次，仍失败则记录 ERROR 并跳过轮转以保证写入不中断）
+            max_retries = 3
+            replaced = False
+            for attempt in range(max_retries):
+                try:
+                    os.replace(self.file_path, rotate_path)
+                    self._last_rotate_time = time.time()
+                    replaced = True
+                    break
+                except OSError as e:
+                    if attempt == max_retries - 1:
+                        logging.getLogger(__name__).error(
+                            "Failed to rotate log file after %s attempts: %s",
+                            max_retries,
+                            e,
+                        )
+                        return
+                    time.sleep(0.1 * (attempt + 1))
+
+            if not replaced:
+                return
 
             # 执行压缩
             if self.compress:
@@ -226,7 +236,14 @@ class CustomRotatingFileHandler:
         dst_path = file_path.with_suffix(file_path.suffix + compress_ext)
 
         if self.compress_async and self._compress_executor:
-            self._compress_executor.submit(self._do_compress, file_path, dst_path)
+            try:
+                self._compress_executor.submit(self._do_compress, file_path, dst_path)
+            except RuntimeError:
+                logging.getLogger(__name__).warning(
+                    "Compress thread pool unavailable, falling back to synchronous compress for %s",
+                    file_path,
+                )
+                self._do_compress(file_path, dst_path)
         else:
             self._do_compress(file_path, dst_path)
 
@@ -237,8 +254,14 @@ class CustomRotatingFileHandler:
             if success:
                 os.remove(src_path)
             # 压缩失败保留原文件
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).warning(
+                "Compress failed for %s -> %s: %s",
+                src_path,
+                dst_path,
+                e,
+                exc_info=True,
+            )
 
     def cleanup(self) -> None:
         """清理旧日志文件"""

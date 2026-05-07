@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -59,8 +60,9 @@ def _generate_config_impl(
     config = get_default_config(version)
 
     # 添加注释
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     comment = f"""# tkzs-structlog 配置文件 (版本 {version})
-# 自动生成于 2024-01-01
+# 自动生成于 {generated_at}
 # 环境: {env or "default"}
 
 """

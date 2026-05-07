@@ -1,10 +1,9 @@
 """CLI模块测试"""
 
 import json
+import re
 import sys
-from io import StringIO
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -118,9 +117,17 @@ class TestCLIGenerate:
         from tkzs_structlog.api.cli import _generate_config_impl
 
         output_path = tmp_path / "subdir" / "nested" / "config.json"
-        content = _generate_config_impl(str(output_path))
+        _generate_config_impl(str(output_path))
 
         assert output_path.exists()
+
+    def test_generate_config_impl_has_dynamic_timestamp(self):
+        """生成头注释使用当前时间，非硬编码日期"""
+        from tkzs_structlog.api.cli import _generate_config_impl
+
+        content = _generate_config_impl(None, version="2.1")
+        assert "2024-01-01" not in content
+        assert re.search(r"自动生成于 \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", content)
 
 
 class TestCLIMain:
@@ -162,6 +169,22 @@ class TestCLIVersion:
 
 class TestCLIIntegration:
     """CLI集成测试"""
+
+    def test_main_version_subcommand(self):
+        """click 可用时 version 子命令退出码 0"""
+        from tkzs_structlog.api import cli
+
+        pytest.importorskip("click")
+        if not cli.CLICK_AVAILABLE:
+            pytest.skip("click not installed")
+
+        with patch.object(sys, "argv", ["tkzs-structlog", "version"]):
+            try:
+                cli.main()
+            except SystemExit as e:
+                assert e.code == 0
+            else:
+                pytest.fail("click CLI should invoke sys.exit")
 
     def test_cli_entry_point(self):
         """测试CLI入口点"""

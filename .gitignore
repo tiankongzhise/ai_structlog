@@ -18,3 +18,5 @@ htmlcov/
 
 .coverage
 test_result.txt
+
+.workbuddy/

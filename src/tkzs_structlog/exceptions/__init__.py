@@ -6,8 +6,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 
 class StructlogBaseError(Exception):
     """Structlog 异常基类

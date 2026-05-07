@@ -133,6 +133,32 @@ class TestLoadConfigFile:
         finally:
             Path(path).unlink()
 
+    def test_load_empty_file_returns_empty_dict(self):
+        """空文件降级为空字典，后续 load_config 合并内置默认"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write("")
+            f.flush()
+            path = f.name
+
+        try:
+            config = load_config_file(path)
+            assert config == {}
+        finally:
+            Path(path).unlink()
+
+    def test_load_comment_only_file_returns_empty_dict(self):
+        """仅注释的文件降级为空字典"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            f.write("// only comment\n")
+            f.flush()
+            path = f.name
+
+        try:
+            config = load_config_file(path)
+            assert config == {}
+        finally:
+            Path(path).unlink()
+
 
 class TestLoadConfig:
     """测试配置加载（多级降级）"""
@@ -214,21 +240,21 @@ class TestGetConfigModel:
 
     def test_get_config_model_with_version(self):
         """测试指定版本获取模型"""
-        from tkzs_structlog.config.validator import get_config_model, StructlogV2Config
+        from tkzs_structlog.config.validator import StructlogV2Config, get_config_model
 
         model = get_config_model("2.0")
         assert model == StructlogV2Config
 
     def test_get_config_model_none_defaults_to_v21(self):
         """测试版本为 None 时默认返回 V2.1 模型"""
-        from tkzs_structlog.config.validator import get_config_model, StructlogV21Config
+        from tkzs_structlog.config.validator import StructlogV21Config, get_config_model
 
         model = get_config_model(None)
         assert model == StructlogV21Config
 
     def test_get_config_model_unknown_version(self):
         """测试未知版本返回 V2.1 模型"""
-        from tkzs_structlog.config.validator import get_config_model, StructlogV21Config
+        from tkzs_structlog.config.validator import StructlogV21Config, get_config_model
 
         model = get_config_model("99.0")
         assert model == StructlogV21Config
@@ -285,9 +311,7 @@ class TestLoadConfigFileEdgeCases:
         """测试非字典配置抛出错误"""
         import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8"
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
             f.write('"not a dict"')
             f.flush()
             path = f.name
@@ -306,7 +330,6 @@ class TestLoadConfigFileEdgeCases:
     def test_load_config_with_env_var(self, monkeypatch):
         """测试环境变量指定配置文件"""
         import tempfile
-        import os
 
         tmpdir = tempfile.mkdtemp()
         try:
@@ -325,12 +348,12 @@ class TestLoadConfigFileEdgeCases:
         finally:
             # 手动清理
             import shutil
+
             if Path(tmpdir).exists():
                 shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_load_config_use_env_false(self, monkeypatch):
         """测试禁用环境配置"""
-        import os
 
         monkeypatch.setenv("STRUCTLOG_ENV", "some_env")
 

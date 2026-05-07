@@ -88,6 +88,10 @@ class CustomTruncator(reprlib.Repr):
 
     def truncate_str(self, s: str) -> str:
         """截断字符串（对称截断）"""
+        if not s:
+            return s
+        if self.maxstring <= 0:
+            return s
         if len(s) <= self.maxstring:
             return s
         half = self.maxstring // 2
@@ -100,6 +104,8 @@ class CustomTruncator(reprlib.Repr):
     def repr_iter(self, obj: Any, level: int, maxlen: int, method: Any) -> str:
         """可迭代对象表示（对称截断）"""
         items = list(obj)
+        if maxlen <= 0:
+            return reprlib.Repr.repr(self, items)
         if len(items) <= maxlen:
             return reprlib.Repr.repr(self, items)
 

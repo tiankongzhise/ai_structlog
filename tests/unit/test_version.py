@@ -1,6 +1,5 @@
 """版本模块测试"""
 
-import pytest
 
 
 class TestVersion:
@@ -54,12 +53,6 @@ class TestVersion:
         """测试所有导出"""
         from tkzs_structlog._version import (
             __all__,
-            __commit_id__,
-            __version__,
-            __version_tuple__,
-            commit_id,
-            version,
-            version_tuple,
         )
 
         assert "__version__" in __all__

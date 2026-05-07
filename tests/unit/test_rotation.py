@@ -7,8 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestCompressBackends:
     """测试压缩后端"""
@@ -556,3 +554,60 @@ class TestRotationEdgeCases:
 
         # 恢复权限以便清理
         read_only_file.chmod(0o644)
+
+    def test_check_and_rotate_once_when_size_and_time_trigger(self, tmp_path):
+        """大小与时间同时满足时只执行一次 rotate"""
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "both.log"
+        log_file.write_bytes(b"x" * 500)
+
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": True, "max_bytes": 10},
+        }
+        handler = CustomRotatingFileHandler(config)
+        with patch.object(handler, "_should_rotate_by_size", return_value=True):
+            with patch.object(handler, "_should_rotate_by_time", return_value=True):
+                with patch.object(handler, "rotate", wraps=handler.rotate) as mock_rotate:
+                    handler.check_and_rotate()
+                    assert mock_rotate.call_count == 1
+
+    def test_rotate_os_replace_retries_before_success(self, tmp_path, monkeypatch):
+        """os.replace 失败时重试直至成功"""
+        import tkzs_structlog.extensions.rotation as rot
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "retry.log"
+        log_file.write_text("data", encoding="utf-8")
+        config = {"file_path": str(log_file), "custom_rotate": {"enable": True}}
+        handler = CustomRotatingFileHandler(config)
+
+        calls = {"n": 0}
+        real_replace = rot.os.replace
+
+        def flaky_replace(src: str | os.PathLike[str], dst: str | os.PathLike[str]) -> None:
+            calls["n"] += 1
+            if calls["n"] < 2:
+                raise OSError("simulated busy")
+            return real_replace(src, dst)
+
+        monkeypatch.setattr(rot.os, "replace", flaky_replace)
+        handler.rotate()
+        assert calls["n"] == 2
+        assert not log_file.exists()
+
+    def test_rotate_os_replace_all_fail_skips_without_raising(self, tmp_path, monkeypatch):
+        """连续失败则记录错误并保留原文件（不向外抛 StructlogHandlerError）"""
+        import tkzs_structlog.extensions.rotation as rot
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "fail.log"
+        log_file.write_text("keep", encoding="utf-8")
+        config = {"file_path": str(log_file), "custom_rotate": {"enable": True}}
+        handler = CustomRotatingFileHandler(config)
+
+        monkeypatch.setattr(rot.os, "replace", MagicMock(side_effect=OSError("locked")))
+        handler.rotate()
+        assert log_file.exists()
+        assert log_file.read_text(encoding="utf-8") == "keep"

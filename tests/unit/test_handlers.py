@@ -3,8 +3,6 @@
 import logging
 import sys
 from io import StringIO
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -62,9 +60,7 @@ class TestSetupFileHandler:
 
         # 验证处理器被添加
         root_logger = logging.getLogger()
-        handler_found = any(
-            isinstance(h, logging.FileHandler) for h in root_logger.handlers
-        )
+        handler_found = any(isinstance(h, logging.FileHandler) for h in root_logger.handlers)
         assert handler_found
 
     def test_file_handler_creates_directory(self, tmp_path):
@@ -84,8 +80,8 @@ class TestSetupFileHandler:
 
     def test_file_handler_invalid_path(self, tmp_path):
         """测试无效路径（包含非法字符）"""
-        from tkzs_structlog.extensions.handlers import setup_file_handler
         from tkzs_structlog.exceptions import StructlogHandlerError
+        from tkzs_structlog.extensions.handlers import setup_file_handler
 
         # 使用包含非法字符的路径 (Windows不允许 | 在文件名中)
         config = {
@@ -219,9 +215,7 @@ class TestSetupColoredConsoleHandler:
 
         # 验证处理器被添加
         root_logger = logging.getLogger()
-        handler_found = any(
-            isinstance(h, ColoredConsoleHandler) for h in root_logger.handlers
-        )
+        handler_found = any(isinstance(h, ColoredConsoleHandler) for h in root_logger.handlers)
         assert handler_found
 
 
@@ -230,14 +224,20 @@ class TestHandlerEdgeCases:
 
     def test_multiple_handlers(self, tmp_path):
         """测试添加多个处理器"""
-        from tkzs_structlog.extensions.handlers import setup_colored_console_handler, setup_console_handler, setup_file_handler
+        from tkzs_structlog.extensions.handlers import (
+            setup_colored_console_handler,
+            setup_console_handler,
+            setup_file_handler,
+        )
 
         setup_console_handler({"enable": True})
         setup_colored_console_handler({"enable": True})
-        setup_file_handler({
-            "enable": True,
-            "file_path": str(tmp_path / "test.log"),
-        })
+        setup_file_handler(
+            {
+                "enable": True,
+                "file_path": str(tmp_path / "test.log"),
+            }
+        )
 
         root_logger = logging.getLogger()
         assert len(root_logger.handlers) >= 3

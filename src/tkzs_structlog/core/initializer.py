@@ -47,6 +47,8 @@ class StructlogInitializer:
     def __init__(self) -> None:
         self._is_initialized = False
         self._config: dict[str, Any] = {}
+        self._use_stdlib_bridge = False
+        self._bridge_renderer: Any | None = None
 
     def init(
         self,
@@ -98,6 +100,8 @@ class StructlogInitializer:
 
     def _setup_processors(self) -> None:
         """构建处理器链"""
+        import structlog.stdlib as sl_stdlib
+
         from tkzs_structlog.extensions.processors import (
             FilterProcessor,
             SensitiveDataProcessor,
@@ -113,10 +117,10 @@ class StructlogInitializer:
             "structlog.processors.JSONRenderer",
             "structlog.processors.Renderer",
         )
-        processor_specs = [s for s in processor_specs if s not in renderer_classes]
+        processor_specs_only = [s for s in processor_specs if s not in renderer_classes]
 
         # 构建基础处理器
-        processors = builder.build(processor_specs)
+        processors = builder.build(processor_specs_only)
 
         # 添加扩展处理器
         truncate_config = get_extension_config(self._config, "log_truncate")
@@ -131,26 +135,57 @@ class StructlogInitializer:
         if filter_rules and (filter_rules.get("exclude") or filter_rules.get("include")):
             processors.append(FilterProcessor)
 
-        # 添加最终渲染器
-        processors.append(structlog.dev.ConsoleRenderer())
+        bridge = self._config.get("bridge_std_logging", True)
+        renderer = structlog.dev.ConsoleRenderer()
 
-        structlog.configure(
-            processors=processors,
-            context_class=dict,
-            cache_logger_on_first_use=True,
-        )
+        # 标准库 logging 桥接：stdlib LoggerFactory + ProcessorFormatter（等价于文档要求的桥接效果）
+        if bridge:
+            self._use_stdlib_bridge = True
+            self._bridge_renderer = renderer
+            chain = [
+                sl_stdlib.filter_by_level,
+                sl_stdlib.add_logger_name,
+                sl_stdlib.add_log_level,
+                sl_stdlib.PositionalArgumentsFormatter(),
+                *processors,
+                sl_stdlib.ProcessorFormatter.wrap_for_formatter,
+            ]
+            structlog.configure(
+                processors=chain,
+                wrapper_class=sl_stdlib.BoundLogger,
+                logger_factory=sl_stdlib.LoggerFactory(),
+                context_class=dict,
+                cache_logger_on_first_use=True,
+            )
+        else:
+            self._use_stdlib_bridge = False
+            self._bridge_renderer = None
+            processors.append(renderer)
+            structlog.configure(
+                processors=processors,
+                context_class=dict,
+                cache_logger_on_first_use=True,
+            )
 
     def _setup_handlers(self) -> None:
         """设置输出处理器"""
         # 控制台处理器
         console_config = get_handler_config(self._config, "console")
         if console_config.get("enable", False):
-            setup_console_handler(console_config)
+            setup_console_handler(
+                console_config,
+                stdlib_bridge=self._use_stdlib_bridge,
+                renderer=self._bridge_renderer,
+            )
 
         # 文件处理器
         file_config = get_handler_config(self._config, "file")
         if file_config.get("enable", False):
-            setup_file_handler(file_config)
+            setup_file_handler(
+                file_config,
+                stdlib_bridge=self._use_stdlib_bridge,
+                renderer=self._bridge_renderer,
+            )
 
     def _setup_logger_factory(self) -> None:
         """设置日志工厂"""
@@ -172,6 +207,8 @@ class StructlogInitializer:
         """重置初始化状态"""
         self._is_initialized = False
         self._config = {}
+        self._use_stdlib_bridge = False
+        self._bridge_renderer = None
 
         # 重置全局状态
         reset_processor_builder()

@@ -12,9 +12,9 @@ from tkzs_structlog.extensions.handlers import (
     setup_file_handler,
 )
 from tkzs_structlog.extensions.hotreload import (
+    WATCHDOG_AVAILABLE,
     ConfigFileHandler,
     ConfigHotReloader,
-    WATCHDOG_AVAILABLE,
     reload_processor,
 )
 from tkzs_structlog.extensions.processors import (

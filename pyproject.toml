@@ -65,7 +65,8 @@ test = [
 all = ["tkzs-structlog[compress,ecosystem,cli,test]"]
 
 [project.scripts]
-structlog-auto = "structlog_auto.cli:main"
+tkzs-structlog = "tkzs_structlog.api.cli:main"
+structlog-auto = "tkzs_structlog.api.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/tiankongzhise/ai_structlog"
@@ -121,6 +122,8 @@ dev = [
 [tool.ruff]
 line-length = 120
 target-version = "py38"
+
+[tool.ruff.lint]
 select = ["E", "W", "F", "I"]
 ignore = ["E501"]
 

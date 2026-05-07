@@ -100,12 +100,20 @@ def load_config_file(config_path: str | Path) -> dict[str, Any]:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
 
-        # 尝试 JSONC 解析（支持注释）
+        content_trim = content.strip()
+        if not content_trim:
+            return {}
+
+        # 尝试 JSONC 解析（支持注释）；空文件或仅注释降级为空字典后走默认合并
         try:
             config = pyjson5.loads(content)
-        except Exception:
-            # JSONC 解析失败，尝试标准 JSON
-            config = json.loads(content)
+        except Exception as e:
+            if type(e).__name__ == "Json5EOF" or "No JSON data found" in str(e):
+                return {}
+            try:
+                config = json.loads(content)
+            except json.JSONDecodeError:
+                raise
 
         if not isinstance(config, dict):
             raise StructlogConfigParseError(

@@ -1,6 +1,5 @@
 """处理器模块测试"""
 
-
 from tkzs_structlog.extensions.processors import (
     CustomTruncator,
     FilterProcessor,
@@ -106,6 +105,37 @@ class TestCustomTruncator:
         result = self.truncator.repr(deep_obj, level=3)
         assert "MAX_DEPTH" in result
 
+    def test_str_max_length_non_positive_skips_truncation(self):
+        """str_max_length≤0 时不截断字符串"""
+        self.truncator.maxstring = 0
+        long_s = "a" * 100
+        assert self.truncator.truncate_str(long_s) == long_s
+
+    def test_seq_max_elements_non_positive_no_symmetric_cut(self):
+        """seq_max_elements≤0 时不做对称元素截断"""
+        long_list = list(range(20))
+        result = self.truncator.repr_iter(long_list, 0, 0, repr)
+        assert ", ...," not in result
+
+    def test_atomic_types_not_truncated(self):
+        """int/float/bool/None 保持 reprlib 默认表示"""
+        assert self.truncator.repr(42) == "42"
+        assert self.truncator.repr(1.5) == "1.5"
+        assert self.truncator.repr(True) == "True"
+        assert self.truncator.repr(None) == "None"
+
+    def test_empty_string_and_empty_list(self):
+        assert self.truncator.truncate_str("") == ""
+        assert self.truncator.repr([]) == "[]"
+
+    def test_unicode_emoji_symmetric_truncate(self):
+        """中文按字符切片对称截断（长度显著缩短）"""
+        self.truncator.maxstring = 8
+        s = "你好" * 30
+        out = self.truncator.truncate_str(s)
+        assert len(out) < len(s)
+        assert "..." in out
+
 
 class TestMaskValue:
     """测试脱敏函数"""
@@ -137,7 +167,7 @@ class TestTruncateProcessor:
         set_global_config(config)
 
         event_dict = {"args": "x" * 300}
-        result = TruncateProcessor(None, "info", event_dict)
+        TruncateProcessor(None, "info", event_dict)
         # 不应截断
         assert event_dict["args"] == "x" * 300
 
@@ -158,6 +188,23 @@ class TestTruncateProcessor:
         result = TruncateProcessor(None, "info", event_dict)
         # 对称截断：前5个 + ... + 后5个 = 13个字符
         assert len(result["args"]) == 13
+
+    def test_truncate_respects_zero_str_max_length(self):
+        """str_max_length=0 时不截断 args"""
+        config = {
+            "extensions": {
+                "log_truncate": {
+                    "enable": True,
+                    "str_max_length": 0,
+                    "seq_max_elements": 50,
+                    "max_depth": 3,
+                }
+            }
+        }
+        set_global_config(config)
+        event_dict = {"args": "y" * 200}
+        TruncateProcessor(None, "info", event_dict)
+        assert event_dict["args"] == "y" * 200
 
 
 class TestSensitiveDataProcessor:

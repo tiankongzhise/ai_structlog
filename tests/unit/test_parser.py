@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 from tkzs_structlog.config.parser import (
     config_to_dict,
     get_extension_config,
@@ -12,7 +10,7 @@ from tkzs_structlog.config.parser import (
     parse_config,
     parse_config_version,
 )
-from tkzs_structlog.config.validator import StructlogV1Config, validate_config
+from tkzs_structlog.config.validator import StructlogV1Config
 
 
 class TestParseConfig:
@@ -29,7 +27,7 @@ class TestParseConfig:
         """测试 parse_config 调用 validate_config"""
         # 确保 validate_config 被调用
         config = {"version": "1.0", "min_level": "DEBUG"}
-        result = parse_config(config)
+        parse_config(config)
         # 如果 validate_config 没有被调用，这里会抛出异常
 
 
@@ -79,6 +77,7 @@ class TestConfigToDict:
         @dataclass
         class OldStyleModel:
             """旧式模型使用 .dict() 方法"""
+
             version: str = "1.0"
 
             def dict(self):

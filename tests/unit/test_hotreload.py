@@ -1,13 +1,14 @@
 """热重载模块测试"""
 
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+import pytest
 
 from tkzs_structlog.extensions.hotreload import (
+    WATCHDOG_AVAILABLE,
     ConfigFileHandler,
     ConfigHotReloader,
-    WATCHDOG_AVAILABLE,
     reload_processor,
 )
 
@@ -223,7 +224,8 @@ class TestWatchdogAvailability:
         if WATCHDOG_AVAILABLE:
             try:
                 import watchdog.events
-                import watchdog.observers
+                import watchdog.observers  # noqa: F401
+
                 assert True
             except ImportError:
                 pytest.fail("watchdog should be importable when WATCHDOG_AVAILABLE is True")

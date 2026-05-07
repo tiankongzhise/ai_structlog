@@ -1,7 +1,8 @@
 """API模块测试"""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from tkzs_structlog.api.core import (
     bind_context,
@@ -232,7 +233,7 @@ class TestResetStructlog:
 
     def test_reset_clears_context(self):
         """测试重置清空上下文"""
-        from tkzs_structlog import clear_context, init_structlog, reset_structlog
+        from tkzs_structlog import init_structlog, reset_structlog
 
         init_structlog()
         bind_context(test_key="test_value")
@@ -278,7 +279,6 @@ class TestContextAPIExtended:
 
     def test_unbind_context_allows_none(self):
         """测试解绑允许None"""
-        from tkzs_structlog.api.core import _context_store
 
         # 先绑定
         bind_context(key1="value1")
