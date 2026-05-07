@@ -2,6 +2,9 @@ import subprocess
 import sys
 import os
 
+# 设置 UTF-8 编码
+sys.stdout.reconfigure(encoding='utf-8')
+
 # 工作目录
 WORK_DIR = r"c:/Users/3700x/Desktop/ai/ai_structlog"
 
@@ -41,6 +44,6 @@ with open("test_result.txt", "w", encoding="utf-8") as f:
     return_code = process.wait()
 
 # 因为用了 pytest-cov，自动合并多进程覆盖率，不需要手动 coverage combine / coverage report
-print(f"\n✅ 测试完成！退出码: {return_code}")
-print(f"📄 结果已保存到 test_result.txt")
-print(f"📊 覆盖率报告: htmlcov/index.html")
+print(f"\n[OK] Test finished! Exit code: {return_code}")
+print(f"[INFO] Results saved to test_result.txt")
+print(f"[INFO] Coverage report: htmlcov/index.html")
