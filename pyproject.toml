@@ -1,7 +1,130 @@
+[build-system]
+requires = ["hatchling>=1.29.0", "hatch-vcs>=0.4.0"]
+build-backend = "hatchling.build"
+
 [project]
-name = "ai-structlog"
-version = "0.1.0"
-description = "Add your description here"
+name = "tkzs-structlog"
+dynamic = ["version"]
+description = "Structlog 自动化配置工具，支持配置驱动的日志截断、复合轮转、多环境、脱敏等生产级能力"
+description-content-type = "text/markdown"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "tiankongzhise", email = "tiankongzhise@163.com" }]
+maintainers = [{ name = "tiankongzhise", email = "tiankongzhise@163.com" }]
+
+keywords = [
+  "structlog",
+  "logging",
+  "configuration",
+  "log-rotation",
+  "log-truncation",
+  "data-masking"
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: System :: Logging"
+]
+
+dependencies = [
+  "structlog>=23.1.0",
+  "pyjson5>=2.0.0",
+  "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+compress = [
+  "lz4>=4.3.2",
+  "zstandard>=0.22.0"
+]
+ecosystem = [
+  "psycopg2-binary>=2.9.9",
+  "redis>=5.0.1",
+  "kafka-python>=2.0.2",
+  "sentry-sdk>=1.39.1"
+]
+cli = [
+  "watchdog>=3.0.0",
+  "click>=8.1.7"
+]
+test = [
+  "pytest>=9.0.3",
+  "pytest-cov>=4.1.0",
+  "mypy>=1.7.1",
+  "ruff>=0.1.6"
+]
+all = ["tkzs-structlog[compress,ecosystem,cli,test]"]
+
+[project.scripts]
+structlog-auto = "structlog_auto.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/tiankongzhise/ai_structlog"
+Documentation = "https://tkzs-structlog.readthedocs.io/"
+Repository = "https://github.com/tiankongzhise/ai_structlog"
+Issues = "https://github.com/tiankongzhise/ai_structlog/issues"
+
+# ==================== Hatch 配置（修复路径）====================
+[tool.hatch.build]
+sources = ["src", "pyproject.toml", "LICENSE", "README.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tkzs_structlog"]
+tag = "py3-none-any"
+
+[tool.hatch.version]
+source = "vcs"
+local_scheme = "no-local-version"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/tkzs_structlog/_version.py"
+
+# ==================== UV 配置（修复错误字段）====================
+[[tool.uv.index]]
+name = "tsinghua"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple/"
+default = false   # 不需要设为默认（仅用于上传）
+
+[[tool.uv.index]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = false
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
+publish-url = "https://www.pypi.org/legacy/"
+default = true
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+default = false
+
+# 修复：UV 新版用 dev-dependencies 替代废弃字段
+[tool.uv]
+dev-dependencies = [
+  "tkzs-structlog[test]",
+]
+
+# ==================== 代码检查工具配置 ====================
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+select = ["E", "W", "F", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.8"
+strict = true
+packages = ["src/tkzs_structlog"]
+exclude = ["tests/"]
