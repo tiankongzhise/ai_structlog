@@ -203,7 +203,6 @@ class TestEnvLoaderDotenv:
 
         from tkzs_structlog.config import env_loader
 
-        # 模拟 dotenv 导入失败
         original_import = builtins.__import__
         import_attempted = [False]
 
@@ -216,10 +215,13 @@ class TestEnvLoaderDotenv:
         builtins.__import__ = mock_import
         try:
             importlib.reload(env_loader)
-            with caplog.at_level(logging.WARNING, logger="tkzs_structlog.config.env_loader"):
+            with (
+                patch.dict("os.environ", {"PG_HOST": "env_value", "PG_PORT": "9999"}, clear=True),
+                caplog.at_level(logging.WARNING, logger="tkzs_structlog.config.env_loader"),
+            ):
                 result = env_loader.load_env_config()
-                assert result["pgsql"]["host"] == "localhost"
-                # 验证警告日志
+                assert result["pgsql"]["host"] == "env_value"
+                assert result["pgsql"]["port"] == 9999
                 assert "python-dotenv not installed" in caplog.text
         finally:
             builtins.__import__ = original_import
