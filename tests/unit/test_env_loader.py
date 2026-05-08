@@ -294,13 +294,60 @@ class TestIsRedisAvailableImportError:
         """测试 redis 未安装时返回 False"""
         from tkzs_structlog.config import env_loader
 
-        # 从 sys.modules 中移除 redis，模拟未安装
-        original_module = sys.modules.pop("redis", None)
+        # 模拟 redis 导入失败
+        original_import = builtins.__import__
+        import_attempted = [False]  # 使用列表使变量可变
+
+        def mock_import(name, *args, **kwargs):
+            if name == "redis" and not import_attempted[0]:
+                import_attempted[0] = True
+                raise ImportError("No module named 'redis'")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = mock_import
         try:
             importlib.reload(env_loader)
             result = env_loader.is_redis_available()
             assert result is False
         finally:
-            if original_module:
-                sys.modules["redis"] = original_module
+            builtins.__import__ = original_import
             importlib.reload(env_loader)
+
+
+class TestEnvLoaderDotenvImportError:
+    """测试 dotenv 导入失败（覆盖 17-18 行）"""
+
+    def test_dotenv_import_error(self):
+        """测试 dotenv 导入失败时 load_dotenv 设为 None（覆盖 17-18 行）"""
+        from tkzs_structlog.config import env_loader
+
+        # 模拟 dotenv 导入失败
+        original_import = builtins.__import__
+        import_success = False
+
+        def mock_import(name, *args, **kwargs):
+            if name == "dotenv" and not import_success:
+                raise ImportError("No module named 'dotenv'")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = mock_import
+        try:
+            importlib.reload(env_loader)
+            # 验证 load_dotenv 被设置为 None
+            assert env_loader.load_dotenv is None
+        finally:
+            builtins.__import__ = original_import
+            importlib.reload(env_loader)
+
+    def test_is_redis_available_import_success(self):
+        """测试 redis 导入成功（覆盖 122 行）"""
+        from tkzs_structlog.config import env_loader
+
+        # 确保 redis 模块可用
+        try:
+            import redis  # noqa: F401
+            importlib.reload(env_loader)
+            result = env_loader.is_redis_available()
+            assert result is True
+        except ImportError:
+            pytest.skip("redis module not available")
