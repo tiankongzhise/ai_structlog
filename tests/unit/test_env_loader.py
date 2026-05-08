@@ -1,6 +1,10 @@
 """环境变量加载模块测试"""
 
+import builtins
+import importlib
+import logging
 import os
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -9,25 +13,45 @@ import pytest
 class TestLoadEnvConfig:
     """测试环境变量加载"""
 
-    def test_load_env_config_default_values(self):
+    def test_load_env_config_default_values(self, tmp_path):
         """测试默认配置值"""
+        from tkzs_structlog.config import env_loader
         from tkzs_structlog.config.env_loader import load_env_config
 
-        with patch.dict(os.environ, {}, clear=True):
-            config = load_env_config()
+        # 模拟 load_dotenv 为 None（未安装）
+        original_load_dotenv = env_loader.load_dotenv
+        env_loader.load_dotenv = None
 
-            assert config["pgsql"]["host"] == "localhost"
-            assert config["pgsql"]["port"] == 5432
-            assert config["pgsql"]["user"] == "postgres"
-            assert config["pgsql"]["password"] == ""
-            assert config["pgsql"]["db"] == "structlog"
+        # 切换到临时目录（确保没有 .env 文件）
+        original_cwd = os.getcwd()
+        os.chdir(tmp_path)
 
-            assert config["redis"]["host"] == "localhost"
-            assert config["redis"]["port"] == 6379
-            assert config["redis"]["password"] == ""
-            assert config["redis"]["db"] == 0
+        # 清除所有相关环境变量
+        env_vars_to_clear = [
+            "PG_HOST", "PG_PORT", "PG_USER", "PG_PASSWORD", "PG_DB",
+            "REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_DB"
+        ]
 
-    def test_load_env_config_custom_values(self):
+        try:
+            # 使用 clear=True 清空所有环境变量，确保使用默认值
+            with patch.dict(os.environ, {}, clear=True):
+                config = load_env_config()
+
+                assert config["pgsql"]["host"] == "localhost"
+                assert config["pgsql"]["port"] == 5432
+                assert config["pgsql"]["user"] == "postgres"
+                assert config["pgsql"]["password"] == ""
+                assert config["pgsql"]["db"] == "structlog"
+
+                assert config["redis"]["host"] == "localhost"
+                assert config["redis"]["port"] == 6379
+                assert config["redis"]["password"] == ""
+                assert config["redis"]["db"] == 0
+        finally:
+            os.chdir(original_cwd)
+            env_loader.load_dotenv = original_load_dotenv
+
+    def test_load_env_config_custom_values(self, tmp_path):
         """测试自定义配置值"""
         from tkzs_structlog.config.env_loader import load_env_config
 
@@ -43,19 +67,26 @@ class TestLoadEnvConfig:
             "REDIS_DB": "1",
         }
 
-        with patch.dict(os.environ, env, clear=True):
-            config = load_env_config()
+        # 切换到临时目录（确保没有 .env 文件干扰）
+        original_cwd = os.getcwd()
+        os.chdir(tmp_path)
 
-            assert config["pgsql"]["host"] == "192.168.1.100"
-            assert config["pgsql"]["port"] == 5433
-            assert config["pgsql"]["user"] == "test_user"
-            assert config["pgsql"]["password"] == "test_pass"
-            assert config["pgsql"]["db"] == "test_db"
+        try:
+            with patch.dict(os.environ, env, clear=True):
+                config = load_env_config()
 
-            assert config["redis"]["host"] == "192.168.1.101"
-            assert config["redis"]["port"] == 6380
-            assert config["redis"]["password"] == "redis_pass"
-            assert config["redis"]["db"] == 1
+                assert config["pgsql"]["host"] == "192.168.1.100"
+                assert config["pgsql"]["port"] == 5433
+                assert config["pgsql"]["user"] == "test_user"
+                assert config["pgsql"]["password"] == "test_pass"
+                assert config["pgsql"]["db"] == "test_db"
+
+                assert config["redis"]["host"] == "192.168.1.101"
+                assert config["redis"]["port"] == 6380
+                assert config["redis"]["password"] == "redis_pass"
+                assert config["redis"]["db"] == 1
+        finally:
+            os.chdir(original_cwd)
 
 
 class TestGetPgsqlConfig:
@@ -173,16 +204,103 @@ class TestParsePort:
 class TestEnvLoaderDotenv:
     """测试 dotenv 加载"""
 
-    def test_dotenv_not_installed(self):
+    def test_dotenv_not_installed(self, caplog):
         """测试 dotenv 未安装时的行为"""
-        import sys
+        import logging
+
         from tkzs_structlog.config import env_loader
 
         original_load_dotenv = env_loader.load_dotenv
         env_loader.load_dotenv = None
 
         try:
-            result = env_loader.load_env_config()
-            assert result["pgsql"]["host"] == "localhost"
+            with caplog.at_level(logging.WARNING, logger="tkzs_structlog.config.env_loader"):
+                result = env_loader.load_env_config()
+                assert result["pgsql"]["host"] == "localhost"
+                # 验证警告日志
+                assert "python-dotenv not installed" in caplog.text
         finally:
             env_loader.load_dotenv = original_load_dotenv
+
+    def test_dotenv_file_exists(self, tmp_path, caplog):
+        """测试 .env 文件存在时加载"""
+        from tkzs_structlog.config import env_loader
+
+        # 创建临时 .env 文件
+        env_file = tmp_path / ".env"
+        env_file.write_text("PG_HOST=from_file\nPG_PORT=5433\n")
+
+        # 重新加载模块，确保 load_dotenv 不是 None
+        importlib.reload(env_loader)
+
+        with (
+            patch.object(env_loader.Path, "cwd", return_value=tmp_path),
+            caplog.at_level(logging.DEBUG, logger="tkzs_structlog.config.env_loader"),
+        ):
+            result = env_loader.load_env_config()
+            assert result["pgsql"]["host"] == "from_file"
+            assert result["pgsql"]["port"] == 5433
+
+    def test_dotenv_file_not_exists(self, tmp_path, caplog):
+        """测试 .env 文件不存在时使用默认值（python-dotenv 未安装）"""
+        from tkzs_structlog.config import env_loader
+
+        # 模拟 python-dotenv 未安装
+        original_load_dotenv = env_loader.load_dotenv
+        env_loader.load_dotenv = None
+
+        try:
+            with (
+                patch.object(env_loader.Path, "cwd", return_value=tmp_path),
+                patch.dict(os.environ, {}, clear=True),
+                caplog.at_level(logging.WARNING, logger="tkzs_structlog.config.env_loader"),
+            ):
+                result = env_loader.load_env_config()
+                assert result["pgsql"]["host"] == "localhost"  # 默认值
+                assert "python-dotenv not installed" in caplog.text
+        finally:
+            env_loader.load_dotenv = original_load_dotenv
+
+
+class TestIsPgsqlAvailableImportError:
+    """测试 PGSQL 可用性检查（ImportError 路径）"""
+
+    def test_is_pgsql_available_import_error(self):
+        """测试 psycopg2 未安装时返回 False"""
+        from tkzs_structlog.config import env_loader
+
+        # 模拟 psycopg2 导入失败
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "psycopg2":
+                raise ImportError("No module named 'psycopg2'")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = mock_import
+        try:
+            importlib.reload(env_loader)
+            result = env_loader.is_pgsql_available()
+            assert result is False
+        finally:
+            builtins.__import__ = original_import
+            importlib.reload(env_loader)
+
+
+class TestIsRedisAvailableImportError:
+    """测试 Redis 可用性检查（ImportError 路径）"""
+
+    def test_is_redis_available_import_error(self):
+        """测试 redis 未安装时返回 False"""
+        from tkzs_structlog.config import env_loader
+
+        # 从 sys.modules 中移除 redis，模拟未安装
+        original_module = sys.modules.pop("redis", None)
+        try:
+            importlib.reload(env_loader)
+            result = env_loader.is_redis_available()
+            assert result is False
+        finally:
+            if original_module:
+                sys.modules["redis"] = original_module
+            importlib.reload(env_loader)
