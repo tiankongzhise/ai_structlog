@@ -12,8 +12,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+load_dotenv: Any = None
+
 try:
-    from dotenv import load_dotenv  # type: ignore[import-not-found]
+    from dotenv import load_dotenv
 except ImportError:
     load_dotenv = None
 
@@ -105,7 +107,7 @@ def is_pgsql_available() -> bool:
         是否可用
     """
     try:
-        import psycopg2  # type: ignore[import-untyped]  # noqa: F401
+        import psycopg2  # noqa: F401
         return True
     except ImportError:
         return False
@@ -118,7 +120,7 @@ def is_redis_available() -> bool:
         是否可用
     """
     try:
-        import redis  # type: ignore[import-not-found]  # noqa: F401
+        import redis  # noqa: F401
         return True
     except ImportError:
         return False

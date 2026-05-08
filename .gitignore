@@ -1,4 +1,6 @@
 # Python-generated files
+.*
+!.gitignore
 __pycache__/
 *.py[oc]
 build/
@@ -21,3 +23,4 @@ test_result.txt
 
 .workbuddy/
 .env
+.claude/

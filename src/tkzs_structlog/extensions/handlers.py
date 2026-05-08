@@ -57,8 +57,12 @@ def setup_file_handler(
 ) -> None:
     """设置文件处理器
 
+    支持标准 FileHandler 和自定义复合轮转 CustomRotatingFileHandler。
+
     Args:
-        config: 文件配置
+        config: 文件配置，包含 custom_rotate 子配置
+        stdlib_bridge: 是否已通过 structlog.stdlib 桥接
+        renderer: 桥接时的最终渲染器实例
 
     Raises:
         StructlogHandlerError: 文件处理器设置失败
@@ -66,50 +70,70 @@ def setup_file_handler(
     if not config.get("enable", False):
         return
 
-    file_path = config.get("file_path", "./logs/structlog.log")
-    encoding = config.get("encoding", "utf-8")
+    rotate_config = config.get("custom_rotate", {})
+    use_custom_rotate = rotate_config.get("enable", False)
 
-    try:
-        # 创建父目录
-        path = Path(file_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
+    handler: logging.Handler  # 类型注解
 
-        # 获取根日志器
+    if use_custom_rotate:
+        # 使用自定义复合轮转处理器
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        # 合并配置，确保 file_path 和 encoding 传入
+        full_config = dict(config)
+        full_config["file_path"] = config.get("file_path", "./logs/structlog.log")
+        handler = CustomRotatingFileHandler(full_config)
+
+        # 获取根日志器并添加处理器
         root_logger = logging.getLogger()
-
-        # 创建文件处理器
-        handler = logging.FileHandler(
-            filename=str(path),
-            mode="a",  # 追加模式
-            encoding=encoding,
-        )
-
-        if stdlib_bridge and renderer is not None:
-            from structlog.stdlib import ProcessorFormatter
-
-            handler.setFormatter(ProcessorFormatter(processor=renderer))
-        else:
-            formatter = logging.Formatter(
-                fmt="%(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
-            )
-            handler.setFormatter(formatter)
-
-        # 添加处理器
         root_logger.addHandler(handler)
 
-    except PermissionError:
-        raise StructlogHandlerError(
-            handler_name="file",
-            reason=f"Permission denied writing to file: {file_path}",
-            fix_suggestion="Please check file permissions or use a different path",
-        )
-    except OSError as e:
-        raise StructlogHandlerError(
-            handler_name="file",
-            reason=f"Failed to create file handler: {str(e)}",
-            fix_suggestion="Please check the file path and disk space",
-        )
+    else:
+        # 使用标准 FileHandler
+        file_path = config.get("file_path", "./logs/structlog.log")
+        encoding = config.get("encoding", "utf-8")
+
+        try:
+            # 创建父目录
+            path = Path(file_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+
+            # 获取根日志器
+            root_logger = logging.getLogger()
+
+            # 创建文件处理器
+            handler = logging.FileHandler(
+                filename=str(path),
+                mode="a",  # 追加模式
+                encoding=encoding,
+            )
+
+            if stdlib_bridge and renderer is not None:
+                from structlog.stdlib import ProcessorFormatter
+
+                handler.setFormatter(ProcessorFormatter(processor=renderer))
+            else:
+                formatter = logging.Formatter(
+                    fmt="%(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                )
+                handler.setFormatter(formatter)
+
+            # 添加处理器
+            root_logger.addHandler(handler)
+
+        except PermissionError:
+            raise StructlogHandlerError(
+                handler_name="file",
+                reason=f"Permission denied writing to file: {file_path}",
+                fix_suggestion="Please check file permissions or use a different path",
+            )
+        except OSError as e:
+            raise StructlogHandlerError(
+                handler_name="file",
+                reason=f"Failed to create file handler: {str(e)}",
+                fix_suggestion="Please check the file path and disk space",
+            )
 
 
 class ColoredConsoleHandler(logging.StreamHandler[Any]):

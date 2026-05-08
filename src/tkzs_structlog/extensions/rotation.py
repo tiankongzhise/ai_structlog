@@ -141,7 +141,7 @@ class Lz4Backend(CompressBackend):
     def compress(self, src_path: Path, dst_path: Path) -> bool:
         """Lz4 压缩"""
         try:
-            import lz4.frame  # type: ignore[import-not-found]
+            import lz4.frame
 
             with open(src_path, "rb") as f_in, lz4.frame.open(dst_path, "wb") as f_out:
                 f_out.write(f_in.read())
@@ -162,7 +162,7 @@ class ZstdBackend(CompressBackend):
     def compress(self, src_path: Path, dst_path: Path) -> bool:
         """Zstd 压缩"""
         try:
-            import zstandard as zstd  # type: ignore[import-not-found]
+            import zstandard as zstd
 
             with open(src_path, "rb") as f_in, open(dst_path, "wb") as f_out:
                 cctx = zstd.ZstdCompressor()

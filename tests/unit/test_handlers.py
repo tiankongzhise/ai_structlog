@@ -38,6 +38,7 @@ class TestSetupConsoleHandler:
         import logging
 
         from structlog.stdlib import ProcessorFormatter
+
         from tkzs_structlog.extensions.handlers import setup_console_handler
 
         config = {"enable": True}
@@ -164,6 +165,7 @@ class TestSetupFileHandler:
         import logging
 
         from structlog.stdlib import ProcessorFormatter
+
         from tkzs_structlog.extensions.handlers import setup_file_handler
 
         log_file = tmp_path / "test.log"
@@ -437,8 +439,8 @@ class TestSetupOutputHandlers:
 
     def test_setup_output_handlers_pgsql_enabled_structlog_error(self):
         """测试 PGSQL 启用但抛出 StructlogHandlerError（覆盖 204-207 行）"""
-        from tkzs_structlog.extensions.handlers import setup_output_handlers
         from tkzs_structlog.exceptions import StructlogHandlerError
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
 
         config = {
             "handlers": {
@@ -484,8 +486,8 @@ class TestSetupOutputHandlers:
 
     def test_setup_output_handlers_redis_enabled_structlog_error(self):
         """测试 Redis 启用但抛出 StructlogHandlerError（覆盖 214-217 行）"""
-        from tkzs_structlog.extensions.handlers import setup_output_handlers
         from tkzs_structlog.exceptions import StructlogHandlerError
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
 
         config = {
             "handlers": {

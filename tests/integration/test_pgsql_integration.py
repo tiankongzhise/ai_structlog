@@ -9,12 +9,12 @@ import time
 import pytest
 
 from tkzs_structlog.config.env_loader import get_pgsql_config, is_pgsql_available
+from tkzs_structlog.exceptions import StructlogHandlerError
 from tkzs_structlog.extensions.pgsql_handler import (
     PGSQLHandler,
     _validate_table_name,
     setup_pgsql_handler,
 )
-from tkzs_structlog.exceptions import StructlogHandlerError
 
 
 def _can_connect_pgsql() -> bool:
@@ -205,8 +205,7 @@ class TestPGSQLHandlerFlushBatch:
             {"log_time": "2025-01-01 00:00:01", "level": "DEBUG", "logger": "test", "message": "test2", "extra": {}},
         ]
 
-        # 保存 batch 大小并刷新
-        batch_size = len(handler._batch)
+        # 刷新 batch
         handler._flush_batch()
 
         # 验证 batch 已清空且记录了日志
@@ -215,7 +214,6 @@ class TestPGSQLHandlerFlushBatch:
 
     def test_flush_batch_exception(self, pgsql_config):
         """测试写入异常时回滚"""
-        import psycopg2
 
         config = {"enable": True}
         handler = PGSQLHandler(config)
@@ -304,7 +302,6 @@ class TestPGSQLHandlerShutdown:
         handler = PGSQLHandler(config)
         handler.initialize()
 
-        pool = handler._pool
         handler.shutdown()
 
         # pool 应该被关闭（closeall 被调用）

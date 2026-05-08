@@ -1,12 +1,12 @@
 """PGSQL 处理器模块测试（完整覆盖）"""
 
 import time
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tkzs_structlog.extensions.pgsql_handler import _validate_table_name
 from tkzs_structlog.exceptions import StructlogHandlerError
+from tkzs_structlog.extensions.pgsql_handler import _validate_table_name
 
 
 class TestPGSQLHandlerInit:
@@ -113,8 +113,8 @@ class TestPGSQLHandlerInitialize:
     @patch("tkzs_structlog.extensions.pgsql_handler.is_pgsql_available")
     def test_initialize_psycopg2_not_available(self, mock_available):
         """测试依赖缺失时抛出异常"""
-        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
         from tkzs_structlog.exceptions import StructlogHandlerError
+        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
         PGSQLHandler.reset_instance()
         mock_available.return_value = False
@@ -131,8 +131,8 @@ class TestPGSQLHandlerInitialize:
     @patch("tkzs_structlog.extensions.pgsql_handler.get_pgsql_config")
     def test_initialize_connection_error(self, mock_config, mock_available):
         """测试连接失败时抛出异常"""
-        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
         from tkzs_structlog.exceptions import StructlogHandlerError
+        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
         PGSQLHandler.reset_instance()
         mock_available.return_value = True
@@ -171,8 +171,9 @@ class TestPGSQLHandlerEmit:
     @patch("tkzs_structlog.extensions.pgsql_handler.get_pgsql_config")
     def test_emit_success(self, mock_config, mock_available):
         """测试成功写入"""
-        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
         import queue
+
+        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
         PGSQLHandler.reset_instance()
         mock_available.return_value = True
@@ -265,7 +266,6 @@ class TestValidateTableName:
 
     def test_valid_table_name(self):
         """测试合法表名"""
-        from tkzs_structlog.extensions.pgsql_handler import _validate_table_name
 
         assert _validate_table_name("structlog_logs") == "structlog_logs"
         assert _validate_table_name("_test") == "_test"
@@ -273,14 +273,12 @@ class TestValidateTableName:
 
     def test_invalid_table_name_starts_with_number(self):
         """测试以数字开头的表名"""
-        from tkzs_structlog.extensions.pgsql_handler import _validate_table_name
 
         with pytest.raises(StructlogHandlerError):
             _validate_table_name("123table")
 
     def test_invalid_table_name_special_chars(self):
         """测试包含特殊字符的表名"""
-        from tkzs_structlog.extensions.pgsql_handler import _validate_table_name
 
         with pytest.raises(StructlogHandlerError):
             _validate_table_name("table;DROP TABLE users")
@@ -374,6 +372,7 @@ class TestPGSQLHandlerCreateTable:
     def test_create_table_exception(self, caplog):
         """测试创建表异常"""
         import logging
+
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
         mock_conn = MagicMock()
@@ -411,6 +410,7 @@ class TestPGSQLHandlerWorker:
     def test_worker_timeout_flush(self):
         """测试超时后刷新"""
         import queue
+
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
         handler = PGSQLHandler({"enable": True, "flush_interval": 0.1, "batch_size": 1000})
@@ -428,6 +428,7 @@ class TestPGSQLHandlerWorker:
     def test_worker_batch_size_flush(self):
         """测试达到 batch_size 时刷新"""
         import queue
+
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
         handler = PGSQLHandler({"enable": True, "flush_interval": 60, "batch_size": 2})
@@ -500,6 +501,7 @@ class TestPGSQLHandlerFlushBatch:
     def test_flush_batch_exception(self, caplog):
         """测试写入异常"""
         import logging
+
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
         mock_conn = MagicMock()
@@ -530,6 +532,7 @@ class TestPGSQLHandlerEmitEdgeCases:
         """测试队列满时丢弃日志"""
         import logging
         import queue
+
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
         handler = PGSQLHandler({"enable": True})

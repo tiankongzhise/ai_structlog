@@ -4,7 +4,6 @@ import builtins
 import importlib
 import logging
 import os
-import sys
 from unittest.mock import patch
 
 import pytest
@@ -25,12 +24,6 @@ class TestLoadEnvConfig:
         # 切换到临时目录（确保没有 .env 文件）
         original_cwd = os.getcwd()
         os.chdir(tmp_path)
-
-        # 清除所有相关环境变量
-        env_vars_to_clear = [
-            "PG_HOST", "PG_PORT", "PG_USER", "PG_PASSWORD", "PG_DB",
-            "REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_DB"
-        ]
 
         try:
             # 使用 clear=True 清空所有环境变量，确保使用默认值
@@ -159,7 +152,7 @@ class TestIsPgsqlAvailable:
         env_loader.is_pgsql_available = mock_check
 
         try:
-            result = env_loader.is_pgsql_available()
+            env_loader.is_pgsql_available()
         except ImportError:
             pass
 

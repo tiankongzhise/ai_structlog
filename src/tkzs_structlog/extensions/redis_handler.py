@@ -11,7 +11,7 @@ import queue
 import threading
 import time
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from tkzs_structlog.config.env_loader import get_redis_config, is_redis_available
 from tkzs_structlog.exceptions import StructlogHandlerError
@@ -34,7 +34,7 @@ class RedisHandler:
 
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
-        self._client = None
+        self._client: Optional[Any] = None
         self._queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=10000)
         self._worker_thread: threading.Thread | None = None
         self._running = False
@@ -90,7 +90,7 @@ class RedisHandler:
             )
 
         try:
-            import redis  # type: ignore[import-not-found]
+            import redis
 
             env_config = get_redis_config()
             self._client = redis.Redis(
@@ -103,7 +103,7 @@ class RedisHandler:
                 socket_timeout=5,
             )
 
-            self._client.ping()  # type: ignore[attr-defined]
+            self._client.ping()
             self._running = True
             self._worker_thread = threading.Thread(
                 target=self._worker, daemon=True

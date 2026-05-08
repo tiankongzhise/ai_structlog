@@ -1,6 +1,7 @@
 """Redis 处理器模块测试"""
 
 import threading
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -108,8 +109,8 @@ class TestRedisHandlerInitialize:
     @patch("tkzs_structlog.extensions.redis_handler.is_redis_available")
     def test_initialize_redis_not_available(self, mock_available):
         """测试依赖缺失时抛出异常"""
-        from tkzs_structlog.extensions.redis_handler import RedisHandler
         from tkzs_structlog.exceptions import StructlogHandlerError
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         RedisHandler.reset_instance()
         mock_available.return_value = False
@@ -126,8 +127,8 @@ class TestRedisHandlerInitialize:
     @patch("tkzs_structlog.extensions.redis_handler.get_redis_config")
     def test_initialize_connection_error(self, mock_config, mock_available):
         """测试连接失败时抛出异常"""
-        from tkzs_structlog.extensions.redis_handler import RedisHandler
         from tkzs_structlog.exceptions import StructlogHandlerError
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         RedisHandler.reset_instance()
         mock_available.return_value = True
@@ -184,8 +185,9 @@ class TestRedisHandlerEmit:
     @patch("tkzs_structlog.extensions.redis_handler.get_redis_config")
     def test_emit_success(self, mock_config, mock_available):
         """测试成功写入"""
-        from tkzs_structlog.extensions.redis_handler import RedisHandler
         import queue
+
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         RedisHandler.reset_instance()
         mock_available.return_value = True
@@ -272,8 +274,6 @@ class TestSetupRedisHandler:
         mock_handler.initialize.assert_called_once()
 
 
-import time
-
 
 class TestRedisHandlerWorker:
     """测试工作线程（使用 mock）"""
@@ -294,6 +294,7 @@ class TestRedisHandlerWorker:
     def test_worker_timeout_flush(self):
         """测试超时后刷新"""
         import queue
+
         from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         handler = RedisHandler({"enable": True, "flush_interval": 0.1, "batch_size": 1000})
@@ -311,6 +312,7 @@ class TestRedisHandlerWorker:
     def test_worker_batch_size_flush(self):
         """测试达到 batch_size 时刷新"""
         import queue
+
         from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         handler = RedisHandler({"enable": True, "flush_interval": 60, "batch_size": 2})
@@ -410,6 +412,7 @@ class TestRedisHandlerWorkerCoverage:
     def test_worker_processes_queue_and_flushes_by_timeout(self, mock_logger):
         """测试 worker 处理队列并在超时时刷新（覆盖 127-136 行）"""
         import queue
+
         from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         handler = RedisHandler({"enable": True, "flush_interval": 0.1, "batch_size": 1000})
@@ -438,6 +441,7 @@ class TestRedisHandlerWorkerCoverage:
     def test_worker_queue_get_timeout_then_flush(self):
         """测试队列超时后刷新 batch（覆盖 127-140 行）"""
         import queue
+
         from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         handler = RedisHandler({"enable": True, "flush_interval": 0.1, "batch_size": 100})
@@ -460,8 +464,9 @@ class TestRedisHandlerWorkerCoverage:
 
     def test_worker_exception_in_loop(self):
         """测试 worker 循环中发生异常（覆盖 141-142 行）"""
-        from tkzs_structlog.extensions.redis_handler import RedisHandler
         import queue
+
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         handler = RedisHandler({"enable": True, "flush_interval": 0.1})
         handler._running = True
@@ -488,6 +493,7 @@ class TestRedisHandlerWorkerCoverage:
     def test_worker_appends_to_batch_and_flushes_by_batch_size(self):
         """测试 worker 添加日志到 batch 并在达到 batch_size 时刷新（覆盖 130-136 行）"""
         import queue
+
         from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         handler = RedisHandler({"enable": True, "flush_interval": 60, "batch_size": 2})
@@ -531,6 +537,7 @@ class TestRedisHandlerWorkerCoverage:
     def test_worker_empty_exception_with_non_empty_batch(self):
         """测试队列为空但 batch 不为空时刷新（覆盖 138-140 行）"""
         import queue
+
         from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         handler = RedisHandler({"enable": True, "flush_interval": 60, "batch_size": 100})
@@ -589,9 +596,8 @@ class TestRedisHandlerFlushBatchEdgeCases:
         message = call_args[0][1]
         assert "测试中文" in message
         mock_pipeline.execute.assert_called_once()
-    """测试批量写入（使用 mock）"""
 
-    def teardown_method(self):
+    def teardown_method(self):  # noqa: F811
         from tkzs_structlog.extensions.redis_handler import RedisHandler
         RedisHandler.reset_instance()
 
@@ -643,6 +649,7 @@ class TestRedisHandlerFlushBatchEdgeCases:
     def test_flush_batch_exception(self, caplog):
         """测试写入异常"""
         import logging
+
         from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         mock_client = MagicMock()
@@ -672,6 +679,7 @@ class TestRedisHandlerEmitEdgeCases:
         """测试队列满时丢弃日志"""
         import logging
         import queue
+
         from tkzs_structlog.extensions.redis_handler import RedisHandler
 
         handler = RedisHandler({"enable": True})

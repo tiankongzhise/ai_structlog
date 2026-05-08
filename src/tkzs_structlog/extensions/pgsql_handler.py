@@ -103,7 +103,7 @@ class PGSQLHandler:
             )
 
         try:
-            from psycopg2 import pool  # type: ignore[import-untyped]
+            from psycopg2 import pool
 
             env_config = get_pgsql_config()
             self._pool = pool.ThreadedConnectionPool(

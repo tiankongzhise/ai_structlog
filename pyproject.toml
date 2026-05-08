@@ -38,6 +38,7 @@ dependencies = [
   "structlog>=23.1.0",
   "pyjson5>=2.0.0",
   "pydantic>=2.0",
+  "psycopg2-binary>=2.9.12",
 ]
 
 [project.optional-dependencies]
@@ -116,6 +117,7 @@ default = false
 # 修复：UV 新版用 dev-dependencies 替代废弃字段
 [dependency-groups]
 dev = [
+  "python-dotenv>=1.2.2",
   "tkzs-structlog[test]",
 ]
 

@@ -1,12 +1,10 @@
 """初始化器模块测试"""
 
 import logging
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 import structlog
+
 from tkzs_structlog.core.initializer import (
     StructlogInitializer,
     get_initializer,
