@@ -9,12 +9,84 @@ import concurrent.futures
 import gzip
 import logging
 import os
+import sys
 import threading
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+# ==================== 跨平台进程锁 ====================
+
+
+def _get_process_lock(file_path: Path) -> tuple[Any, bool]:
+    """获取跨进程文件锁（跨平台）
+
+    Args:
+        file_path: 需要加锁的文件路径
+
+    Returns:
+        (lock_file, is_locked) - 锁文件对象和是否成功获取锁
+    """
+    lock_path = file_path.with_suffix(file_path.suffix + ".lock")
+
+    if sys.platform == "win32":
+        try:
+            import msvcrt
+
+            lock_file = open(lock_path, "w")
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            return lock_file, True
+        except (OSError, IOError, ImportError):
+            if "lock_file" in locals():
+                try:
+                    lock_file.close()
+                except Exception:
+                    pass
+            return None, False
+    else:
+        try:
+            import fcntl
+
+            lock_file = open(lock_path, "w")
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock_file, True
+        except (OSError, IOError, ImportError):
+            if "lock_file" in locals():
+                try:
+                    lock_file.close()
+                except Exception:
+                    pass
+            return None, False
+
+
+def _release_process_lock(lock_file: Any) -> None:
+    """释放进程锁
+
+    Args:
+        lock_file: 锁文件对象
+    """
+    if lock_file is None:
+        return
+
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    except Exception:
+        pass
+
+    try:
+        lock_file.close()
+    except Exception:
+        pass
+
 
 # ==================== 压缩后端抽象 ====================
 
@@ -174,13 +246,22 @@ class CustomRotatingFileHandler:
         return self.file_path.stat().st_size >= self.max_bytes
 
     def _should_rotate_by_time(self) -> bool:
-        """检查是否应该按时间轮转"""
+        """检查是否应该按时间轮转
+
+        支持的模式：
+        - MIDNIGHT: 每天零点轮转
+        - H: 按小时轮转
+        - D: 按天轮转（每天检查）
+        - W0-W6: 按周轮转（0=周一，6=周日）
+        """
         if not self.enable_rotate:
             return False
 
-        if self.rotate_when == "MIDNIGHT":
+        now = datetime.now()
+        rotate_when = self.rotate_when.upper()
+
+        if rotate_when == "MIDNIGHT":
             # 每天零点轮转
-            now = datetime.now()
             if now.hour == 0 and now.minute == 0:
                 return True
             # 检查是否跨天
@@ -188,6 +269,38 @@ class CustomRotatingFileHandler:
                 last_time = datetime.fromtimestamp(self._last_rotate_time)
                 if last_time.date() != now.date():
                     return True
+
+        elif rotate_when == "H":
+            # 按小时轮转
+            if self._last_rotate_time > 0:
+                last_time = datetime.fromtimestamp(self._last_rotate_time)
+                if now.hour != last_time.hour:
+                    return True
+
+        elif rotate_when == "D":
+            # 按天轮转（每天检查是否跨日期）
+            if self._last_rotate_time > 0:
+                last_time = datetime.fromtimestamp(self._last_rotate_time)
+                if last_time.date() != now.date():
+                    return True
+
+        elif rotate_when.startswith("W") and len(rotate_when) == 2:
+            # 按周轮转 W0-W6 (0=周一, 6=周日)
+            try:
+                weekday = int(rotate_when[1])
+                if 0 <= weekday <= 6:
+                    # 当前星期与目标星期匹配
+                    if now.weekday() == weekday:
+                        if self._last_rotate_time > 0:
+                            last_time = datetime.fromtimestamp(self._last_rotate_time)
+                            # 检查是否跨周（周数不同）
+                            if now.isocalendar()[1] != last_time.isocalendar()[1]:
+                                return True
+                        else:
+                            # 首次运行且星期匹配，应该轮转
+                            return True
+            except ValueError:
+                pass
 
         return False
 

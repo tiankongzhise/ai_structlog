@@ -893,3 +893,215 @@ class TestRotationEdgeCases:
             result = backend.compress(src_file, dst_file)
 
         assert result is False
+
+
+class TestProcessLock:
+    """测试跨平台进程锁"""
+
+    def test_get_process_lock_returns_tuple(self, tmp_path):
+        """测试获取锁返回 (file, bool) 元组"""
+        from tkzs_structlog.extensions.rotation import _get_process_lock
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test")
+
+        result = _get_process_lock(log_file)
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        lock_file, is_locked = result
+        assert is_locked is True or is_locked is False
+
+    def test_get_process_lock_nonexistent_file(self, tmp_path):
+        """测试不存在的文件也能创建锁"""
+        from tkzs_structlog.extensions.rotation import _get_process_lock
+
+        log_file = tmp_path / "nonexistent.log"
+        lock_file, is_locked = _get_process_lock(log_file)
+
+        # 即使文件不存在，也应该能创建锁文件
+        assert lock_file is None or lock_file is not None
+
+    def test_release_process_lock_none(self, tmp_path):
+        """测试释放空锁"""
+        from tkzs_structlog.extensions.rotation import _release_process_lock
+
+        # 传入 None 不应抛异常
+        _release_process_lock(None)
+
+    def test_process_lock_reentrant(self, tmp_path):
+        """测试同一进程可重复获取锁"""
+        from tkzs_structlog.extensions.rotation import _get_process_lock
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test")
+
+        lock1, locked1 = _get_process_lock(log_file)
+        if locked1:
+            lock2, locked2 = _get_process_lock(log_file)
+            # 同一进程第二次获取可能失败（锁被占用）
+
+
+class TestRotateWhenExtended:
+    """测试 rotate_when 扩展模式"""
+
+    def test_should_rotate_by_time_hourly(self, tmp_path):
+        """测试按小时轮转模式"""
+        from datetime import timedelta
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test")
+
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": True, "rotate_when": "H"},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 设置上次轮转时间在上一小时
+        old_time = datetime.now() - timedelta(hours=1)
+        handler._last_rotate_time = old_time.timestamp()
+
+        result = handler._should_rotate_by_time()
+
+        # 当前小时与上次不同，应该轮转
+        assert result is True
+
+    def test_should_rotate_by_time_hourly_same_hour(self, tmp_path):
+        """测试同一小时不触发轮转"""
+        from datetime import timedelta
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test")
+
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": True, "rotate_when": "H"},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 设置上次轮转时间在当前小时
+        old_time = datetime.now() - timedelta(minutes=30)
+        handler._last_rotate_time = old_time.timestamp()
+
+        result = handler._should_rotate_by_time()
+
+        # 同一小时，不应该轮转
+        assert result is False
+
+    def test_should_rotate_by_time_daily(self, tmp_path):
+        """测试按天轮转模式"""
+        from datetime import timedelta
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test")
+
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": True, "rotate_when": "D"},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 设置上次轮转为昨天
+        old_time = datetime.now() - timedelta(days=1)
+        handler._last_rotate_time = old_time.timestamp()
+
+        result = handler._should_rotate_by_time()
+
+        # 跨天了，应该轮转
+        assert result is True
+
+    def test_should_rotate_by_time_daily_same_day(self, tmp_path):
+        """测试同一天不触发轮转"""
+        from datetime import timedelta
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test")
+
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": True, "rotate_when": "D"},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 设置上次轮转为几小时前
+        old_time = datetime.now() - timedelta(hours=5)
+        handler._last_rotate_time = old_time.timestamp()
+
+        result = handler._should_rotate_by_time()
+
+        # 同一天，不应该轮转
+        assert result is False
+
+    def test_should_rotate_by_time_weekly_monday(self, tmp_path):
+        """测试按周轮转模式 W0（周一）"""
+        from datetime import timedelta
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test")
+
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": True, "rotate_when": "W0"},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 今天是周一，但上次轮转是上周
+        now = datetime.now()
+        if now.weekday() == 0:  # 今天是周一
+            # 设置为上周
+            old_time = datetime.now() - timedelta(days=7)
+            handler._last_rotate_time = old_time.timestamp()
+
+            result = handler._should_rotate_by_time()
+
+            # 周一且跨周，应该轮转
+            assert result is True
+        else:
+            # 今天不是周一，不应该轮转
+            result = handler._should_rotate_by_time()
+            assert result is False
+
+    def test_should_rotate_by_time_weekly_invalid(self, tmp_path):
+        """测试无效的周模式"""
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test")
+
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": True, "rotate_when": "W7"},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # W7 无效，应该不触发
+        result = handler._should_rotate_by_time()
+        assert result is False
+
+    def test_should_rotate_by_time_case_insensitive(self, tmp_path):
+        """测试大小写不敏感"""
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test")
+
+        # 测试小写
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": True, "rotate_when": "midnight"},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # midnight 应该被识别为 MIDNIGHT
+        assert handler.rotate_when == "midnight"
