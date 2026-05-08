@@ -20,3 +20,4 @@ htmlcov/
 test_result.txt
 
 .workbuddy/
+.env
