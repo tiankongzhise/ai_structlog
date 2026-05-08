@@ -13,7 +13,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 try:
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv  # type: ignore[import-not-found]
 except ImportError:
     load_dotenv = None
 
@@ -86,7 +86,7 @@ def get_pgsql_config() -> dict[str, Any]:
     Returns:
         PGSQL 配置字典
     """
-    return load_env_config()["pgsql"]
+    return load_env_config()["pgsql"]  # type: ignore[no-any-return]
 
 
 def get_redis_config() -> dict[str, Any]:
@@ -95,7 +95,7 @@ def get_redis_config() -> dict[str, Any]:
     Returns:
         Redis 配置字典
     """
-    return load_env_config()["redis"]
+    return load_env_config()["redis"]  # type: ignore[no-any-return]
 
 
 def is_pgsql_available() -> bool:
@@ -105,7 +105,7 @@ def is_pgsql_available() -> bool:
         是否可用
     """
     try:
-        import psycopg2  # noqa: F401
+        import psycopg2  # type: ignore[import-untyped]  # noqa: F401
         return True
     except ImportError:
         return False
@@ -118,7 +118,7 @@ def is_redis_available() -> bool:
         是否可用
     """
     try:
-        import redis  # noqa: F401
+        import redis  # type: ignore[import-not-found]  # noqa: F401
         return True
     except ImportError:
         return False

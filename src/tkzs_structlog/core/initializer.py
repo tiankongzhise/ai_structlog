@@ -155,6 +155,7 @@ class StructlogInitializer:
                 context_class=dict,
                 cache_logger_on_first_use=True,
             )
+            sl_stdlib.recreate_defaults()
         else:
             self._use_stdlib_bridge = False
             self._bridge_renderer = None

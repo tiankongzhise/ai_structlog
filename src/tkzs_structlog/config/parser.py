@@ -25,7 +25,7 @@ def parse_config_version(config_str: str) -> str:
 
     try:
         config = json.loads(config_str)
-        return config.get("version", "1.0")
+        return config.get("version", "1.0")  # type: ignore[no-any-return]
     except Exception:
         return "1.0"
 
@@ -52,9 +52,9 @@ def config_to_dict(config_model: Any) -> dict[str, Any]:
         配置字典
     """
     if hasattr(config_model, "model_dump"):
-        return config_model.model_dump()
+        return config_model.model_dump()  # type: ignore[no-any-return]
     elif hasattr(config_model, "dict"):
-        return config_model.dict()
+        return config_model.dict()  # type: ignore[no-any-return]
     return dict(config_model)
 
 
@@ -67,7 +67,7 @@ def get_processor_names(config: dict[str, Any]) -> list[str]:
     Returns:
         处理器名称列表
     """
-    return config.get("processors", [])
+    return config.get("processors", [])  # type: ignore[no-any-return]
 
 
 def get_handler_config(config: dict[str, Any], handler_name: str) -> dict[str, Any]:
@@ -81,7 +81,7 @@ def get_handler_config(config: dict[str, Any], handler_name: str) -> dict[str, A
         处理器配置字典
     """
     handlers = config.get("handlers", {})
-    return handlers.get(handler_name, {})
+    return handlers.get(handler_name, {})  # type: ignore[no-any-return]
 
 
 def get_extension_config(config: dict[str, Any], extension_name: str) -> dict[str, Any]:
@@ -95,4 +95,4 @@ def get_extension_config(config: dict[str, Any], extension_name: str) -> dict[st
         扩展配置字典
     """
     extensions = config.get("extensions", {})
-    return extensions.get(extension_name, {})
+    return extensions.get(extension_name, {})  # type: ignore[no-any-return]

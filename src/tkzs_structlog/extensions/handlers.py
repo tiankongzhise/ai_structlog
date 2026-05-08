@@ -112,7 +112,7 @@ def setup_file_handler(
         )
 
 
-class ColoredConsoleHandler(logging.StreamHandler):
+class ColoredConsoleHandler(logging.StreamHandler[Any]):
     """带颜色的控制台处理器"""
 
     # ANSI 颜色代码

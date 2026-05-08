@@ -64,7 +64,7 @@ class ConfigHotReloader:
         self.config_path = Path(config_path)
         self.on_reload = on_reload
         self._is_running = False
-        self._observer: watchdog.observers.Observer | None = None
+        self._observer: Any = None
 
     def start(self) -> None:
         """启动热重载"""

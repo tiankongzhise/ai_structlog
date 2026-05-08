@@ -38,14 +38,14 @@ def get_global_config() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1024)
-def _get_cached_type_name(obj_type: Type) -> str:
+def _get_cached_type_name(obj_type: Type[Any]) -> str:
     """缓存类型名称"""
     return obj_type.__name__
 
 
 def _get_type_name(obj: Any) -> str:
     """获取对象类型名称"""
-    return _get_cached_type_name(type(obj))
+    return _get_cached_type_name(type(obj))  # type: ignore[arg-type]
 
 
 class CustomTruncator(reprlib.Repr):
@@ -66,7 +66,7 @@ class CustomTruncator(reprlib.Repr):
         self.ignore_fields_pattern: list[str] = []
         self.ignore_fields_regex: str | None = None
         self.depth_warning = True
-        self._compiled_regex: re.Pattern | None = None
+        self._compiled_regex: re.Pattern[str] | None = None
 
     def set_config(
         self,

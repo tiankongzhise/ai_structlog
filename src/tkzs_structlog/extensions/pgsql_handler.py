@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import re
 import threading
 import time
 from datetime import datetime
@@ -16,6 +17,18 @@ from tkzs_structlog.config.env_loader import get_pgsql_config, is_pgsql_availabl
 from tkzs_structlog.exceptions import StructlogHandlerError
 
 logger = logging.getLogger(__name__)
+
+TABLE_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
+def _validate_table_name(table_name: str) -> str:
+    if not TABLE_NAME_PATTERN.match(table_name):
+        raise StructlogHandlerError(
+            handler_name="pgsql",
+            reason=f"Invalid table name: '{table_name}'. Table names must start with a letter or underscore and contain only letters, numbers, and underscores.",
+            fix_suggestion="Use a valid table name (e.g., 'structlog_logs', 'app_logs')",
+        )
+    return table_name
 
 
 class PGSQLHandler:
@@ -90,7 +103,7 @@ class PGSQLHandler:
             )
 
         try:
-            from psycopg2 import pool
+            from psycopg2 import pool  # type: ignore[import-untyped]
 
             env_config = get_pgsql_config()
             self._pool = pool.ThreadedConnectionPool(
@@ -121,24 +134,24 @@ class PGSQLHandler:
 
     def _test_connection(self) -> None:
         """测试连接是否可用"""
-        conn = self._pool.getconn()
+        conn = self._pool.getconn()  # type: ignore[attr-defined]
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             cursor.fetchone()
         finally:
             cursor.close()
-            self._pool.putconn(conn)
+            self._pool.putconn(conn)  # type: ignore[attr-defined]
 
     def _create_table(self) -> None:
         """创建默认日志表"""
         if self._table_created:
             return
 
-        conn = self._pool.getconn()
+        conn = self._pool.getconn()  # type: ignore[attr-defined]
         try:
             cursor = conn.cursor()
-            table_name = self.config.get("table_name", "structlog_logs")
+            table_name = _validate_table_name(self.config.get("table_name", "structlog_logs"))
             cursor.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {table_name} (
@@ -159,7 +172,7 @@ class PGSQLHandler:
             conn.rollback()
         finally:
             cursor.close()
-            self._pool.putconn(conn)
+            self._pool.putconn(conn)  # type: ignore[attr-defined]
 
     def _worker(self) -> None:
         """工作线程：批量写入日志"""
@@ -192,7 +205,7 @@ class PGSQLHandler:
         conn = self._pool.getconn()
         try:
             cursor = conn.cursor()
-            table_name = self.config.get("table_name", "structlog_logs")
+            table_name = _validate_table_name(self.config.get("table_name", "structlog_logs"))
 
             for entry in self._batch:
                 cursor.execute(
@@ -208,9 +221,10 @@ class PGSQLHandler:
                 )
 
             conn.commit()
+            batch_size = len(self._batch)
             self._batch.clear()
             self._last_flush = time.time()
-            logger.debug(f"Flushed {len(self._batch)} log entries to PGSQL")
+            logger.debug(f"Flushed {batch_size} log entries to PGSQL")
         except Exception as e:
             logger.error(f"Failed to flush batch to PGSQL: {e}")
             conn.rollback()

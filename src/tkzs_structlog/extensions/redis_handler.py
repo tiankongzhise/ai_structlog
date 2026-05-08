@@ -90,7 +90,7 @@ class RedisHandler:
             )
 
         try:
-            import redis
+            import redis  # type: ignore[import-not-found]
 
             env_config = get_redis_config()
             self._client = redis.Redis(
@@ -103,7 +103,7 @@ class RedisHandler:
                 socket_timeout=5,
             )
 
-            self._client.ping()
+            self._client.ping()  # type: ignore[attr-defined]
             self._running = True
             self._worker_thread = threading.Thread(
                 target=self._worker, daemon=True

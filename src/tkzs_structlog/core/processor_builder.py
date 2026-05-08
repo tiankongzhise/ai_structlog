@@ -33,7 +33,7 @@ def _import_processor(processor_path: str) -> Callable[..., Any]:
     try:
         module_path, class_name = processor_path.rsplit(".", 1)
         module = importlib.import_module(module_path)
-        return getattr(module, class_name)
+        return getattr(module, class_name)  # type: ignore[no-any-return]
     except (ValueError, ImportError, AttributeError) as e:
         raise StructlogProcessorImportError(
             processor_path=processor_path,

@@ -149,7 +149,7 @@ def main() -> int:
         click.echo(f"tkzs-structlog: {__version__}")
         click.echo("Supported config versions: 1.0, 2.0, 2.1, 3.0, 4.0")
 
-    return cli()
+    return cli()  # type: ignore[no-any-return]
 
 
 if __name__ == "__main__":  # pragma: no cover

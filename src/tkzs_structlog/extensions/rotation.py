@@ -141,7 +141,7 @@ class Lz4Backend(CompressBackend):
     def compress(self, src_path: Path, dst_path: Path) -> bool:
         """Lz4 压缩"""
         try:
-            import lz4.frame
+            import lz4.frame  # type: ignore[import-not-found]
 
             with open(src_path, "rb") as f_in, lz4.frame.open(dst_path, "wb") as f_out:
                 f_out.write(f_in.read())
@@ -162,7 +162,7 @@ class ZstdBackend(CompressBackend):
     def compress(self, src_path: Path, dst_path: Path) -> bool:
         """Zstd 压缩"""
         try:
-            import zstandard as zstd
+            import zstandard as zstd  # type: ignore[import-not-found]
 
             with open(src_path, "rb") as f_in, open(dst_path, "wb") as f_out:
                 cctx = zstd.ZstdCompressor()
@@ -243,7 +243,7 @@ class CustomRotatingFileHandler:
         if not self.file_path.exists():
             return False
 
-        return self.file_path.stat().st_size >= self.max_bytes
+        return self.file_path.stat().st_size >= self.max_bytes  # type: ignore[no-any-return]
 
     def _should_rotate_by_time(self) -> bool:
         """检查是否应该按时间轮转
@@ -407,8 +407,8 @@ class CustomRotatingFileHandler:
         if self.retain_days > 0:
             now = time.time()
             cutoff = now - (self.retain_days * 86400)
-            to_delete = [f for f, mtime, _ in files if mtime < cutoff]
-            for f in to_delete:
+            files_to_delete: list[Path] = [f for f, mtime, _ in files if mtime < cutoff]
+            for f in files_to_delete:
                 try:
                     f.unlink()
                 except OSError:
