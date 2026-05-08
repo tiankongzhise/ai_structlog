@@ -428,9 +428,7 @@ class TestLoadConfigEnvAndDefaultFile:
     def test_load_config_loads_env_file_when_it_exists(self, monkeypatch, tmp_path):
         """当环境配置文件存在时，加载该文件（行 172）"""
         env_file = tmp_path / "structlog_config.dev.json"
-        env_file.write_text(
-            '{"version": "1.0", "logger_name": "from_env_file"}', encoding="utf-8"
-        )
+        env_file.write_text('{"version": "1.0", "logger_name": "from_env_file"}', encoding="utf-8")
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("STRUCTLOG_ENV", "dev")
@@ -442,9 +440,7 @@ class TestLoadConfigEnvAndDefaultFile:
         """当无 config_path 且无 env 时，加载默认配置文件（行 178）"""
         # 在 tmp_path 创建默认配置文件（cwd 有，但无 env）
         default_file = tmp_path / "structlog_config.json"
-        default_file.write_text(
-            '{"version": "1.0", "logger_name": "from_default_file"}', encoding="utf-8"
-        )
+        default_file.write_text('{"version": "1.0", "logger_name": "from_default_file"}', encoding="utf-8")
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("STRUCTLOG_ENV", raising=False)
@@ -455,13 +451,9 @@ class TestLoadConfigEnvAndDefaultFile:
     def test_load_config_prefers_env_over_default(self, monkeypatch, tmp_path):
         """环境配置文件优先于默认配置文件"""
         env_file = tmp_path / "structlog_config.prod.json"
-        env_file.write_text(
-            '{"version": "1.0", "logger_name": "prod_logger"}', encoding="utf-8"
-        )
+        env_file.write_text('{"version": "1.0", "logger_name": "prod_logger"}', encoding="utf-8")
         default_file = tmp_path / "structlog_config.json"
-        default_file.write_text(
-            '{"version": "1.0", "logger_name": "default_logger"}', encoding="utf-8"
-        )
+        default_file.write_text('{"version": "1.0", "logger_name": "default_logger"}', encoding="utf-8")
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("STRUCTLOG_ENV", "prod")

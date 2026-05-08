@@ -31,6 +31,7 @@ def init_structlog(
     config_path: str | Path | None = None,
     config: dict[str, Any] | None = None,
     enable_hotreload: bool = False,
+    enable_trace_id: bool | None = None,
     **kwargs: Any,
 ) -> None:
     """初始化 structlog
@@ -39,6 +40,8 @@ def init_structlog(
         config_path: 配置文件路径
         config: 配置字典（直接传入）
         enable_hotreload: 是否启用配置热重载
+        enable_trace_id: 是否自动绑定 trace_id（True 时自动生成 UUID）
+                         若为 None，则从配置 extensions.trace_id_bind 读取
         **kwargs: 其他配置参数
 
     Example:
@@ -59,6 +62,13 @@ def init_structlog(
 
     # 设置全局配置（供处理器使用）
     set_global_config(initializer.config)
+
+    # trace_id 自动绑定
+    if enable_trace_id is None:
+        enable_trace_id = initializer.config.get("extensions", {}).get("trace_id_bind", False)
+
+    if enable_trace_id:
+        bind_context(auto_trace_id=True)
 
     # 启用热重载
     if enable_hotreload and WATCHDOG_AVAILABLE:
@@ -126,18 +136,24 @@ def get_logger(name: str | None = None, **kwargs: Any) -> WrappedLogger:
     return logger
 
 
-def bind_context(**kwargs: Any) -> None:
+def bind_context(auto_trace_id: bool = False, **kwargs: Any) -> None:
     """绑定全局上下文
 
     Args:
+        auto_trace_id: 是否自动生成 trace_id（UUID）
         **kwargs: 上下文键值对
 
     Example:
         >>> tkzs_structlog.bind_context(request_id="12345", user_id=100)
         >>> logger = tkzs_structlog.get_logger()
         >>> logger.info("message")  # 会自动包含 request_id 和 user_id
+        >>> tkzs_structlog.bind_context(auto_trace_id=True)  # 自动生成 trace_id
     """
     global _context_store
+    if auto_trace_id and "trace_id" not in kwargs:
+        import uuid
+
+        kwargs["trace_id"] = str(uuid.uuid4())
     if kwargs:
         _context_store.update(kwargs)
 

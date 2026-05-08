@@ -57,7 +57,9 @@ class ConfigHotReloader:
         on_reload: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         if not WATCHDOG_AVAILABLE:  # pragma: no cover
-            raise ImportError("watchdog is required for hot reload. Please install it with: pip install watchdog")  # pragma: no cover
+            raise ImportError(
+                "watchdog is required for hot reload. Please install it with: pip install watchdog"
+            )  # pragma: no cover
 
         self.config_path = Path(config_path)
         self.on_reload = on_reload

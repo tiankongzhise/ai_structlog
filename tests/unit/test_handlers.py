@@ -253,7 +253,9 @@ class TestHandlerEdgeCases:
         config = {"enable": True, "file_path": str(log_file)}
 
         # 模拟 mkdir 成功但 FileHandler 抛出 PermissionError
-        with patch("tkzs_structlog.extensions.handlers.logging.FileHandler", side_effect=PermissionError("access denied")):
+        with patch(
+            "tkzs_structlog.extensions.handlers.logging.FileHandler", side_effect=PermissionError("access denied")
+        ):
             with pytest.raises(StructlogHandlerError) as exc_info:
                 setup_file_handler(config)
 

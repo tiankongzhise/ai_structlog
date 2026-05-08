@@ -411,3 +411,162 @@ class TestInitializerFilterProcessorPath:
         init_structlog(config=config)
 
         reset_structlog()
+
+
+class TestTraceIdAutoGeneration:
+    """测试 trace_id 自动生成功能"""
+
+    def setup_method(self):
+        """每个测试前清理上下文"""
+        from tkzs_structlog import reset_structlog
+
+        reset_structlog()
+        clear_context()
+
+    def teardown_method(self):
+        """每个测试后清理"""
+        from tkzs_structlog import reset_structlog
+
+        reset_structlog()
+        clear_context()
+
+    def test_bind_context_auto_trace_id_generated(self):
+        """验证 auto_trace_id=True 生成 UUID"""
+        from tkzs_structlog.api.core import _context_store
+
+        _context_store.clear()
+        bind_context(auto_trace_id=True)
+
+        assert "trace_id" in _context_store
+        # UUID 格式: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+        import re
+
+        uuid_pattern = re.compile(
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            re.IGNORECASE,
+        )
+        assert uuid_pattern.match(_context_store["trace_id"]) is not None
+
+    def test_bind_context_auto_trace_id_no_override(self):
+        """验证已有 trace_id 不被覆盖"""
+        from tkzs_structlog.api.core import _context_store
+
+        _context_store.clear()
+        custom_trace_id = "custom-trace-id-123"
+        bind_context(auto_trace_id=True, trace_id=custom_trace_id)
+
+        assert _context_store["trace_id"] == custom_trace_id
+
+    def test_bind_context_auto_trace_id_false(self):
+        """验证 auto_trace_id=False 不生成"""
+        from tkzs_structlog.api.core import _context_store
+
+        _context_store.clear()
+        bind_context(auto_trace_id=False, request_id="123")
+
+        assert "trace_id" not in _context_store
+        assert _context_store.get("request_id") == "123"
+
+    def test_init_structlog_auto_trace_id_from_config(self):
+        """验证配置开关生效 - extensions.trace_id_bind=true"""
+        from tkzs_structlog import init_structlog, reset_structlog
+
+        reset_structlog()
+        clear_context()
+
+        init_structlog(config={"extensions": {"trace_id_bind": True}})
+
+        # 验证上下文中有 trace_id
+        from tkzs_structlog.api.core import _context_store
+
+        assert "trace_id" in _context_store
+
+        reset_structlog()
+        clear_context()
+
+    def test_init_structlog_auto_trace_id_disabled(self):
+        """验证配置为 false 时不自动绑定"""
+        from tkzs_structlog import init_structlog, reset_structlog
+
+        reset_structlog()
+        clear_context()
+
+        init_structlog(config={"extensions": {"trace_id_bind": False}})
+
+        from tkzs_structlog.api.core import _context_store
+
+        assert "trace_id" not in _context_store
+
+        reset_structlog()
+        clear_context()
+
+    def test_init_structlog_enable_trace_id_param_true(self):
+        """验证 enable_trace_id=True 参数生效"""
+        from tkzs_structlog import init_structlog, reset_structlog
+
+        reset_structlog()
+        clear_context()
+
+        init_structlog(config={"version": "1.0"}, enable_trace_id=True)
+
+        from tkzs_structlog.api.core import _context_store
+
+        assert "trace_id" in _context_store
+
+        reset_structlog()
+        clear_context()
+
+    def test_init_structlog_enable_trace_id_param_false(self):
+        """验证 enable_trace_id=False 参数生效"""
+        from tkzs_structlog import init_structlog, reset_structlog
+
+        reset_structlog()
+        clear_context()
+
+        init_structlog(config={"version": "1.0"}, enable_trace_id=False)
+
+        from tkzs_structlog.api.core import _context_store
+
+        assert "trace_id" not in _context_store
+
+        reset_structlog()
+        clear_context()
+
+    def test_init_structlog_enable_trace_id_overrides_config(self):
+        """验证 enable_trace_id 参数优先级高于配置"""
+        from tkzs_structlog import init_structlog, reset_structlog
+
+        reset_structlog()
+        clear_context()
+
+        # 配置为 false，但参数为 True，应以参数为准
+        init_structlog(config={"extensions": {"trace_id_bind": False}}, enable_trace_id=True)
+
+        from tkzs_structlog.api.core import _context_store
+
+        assert "trace_id" in _context_store
+
+        reset_structlog()
+        clear_context()
+
+        # 配置为 true，但参数为 False，应以参数为准
+        _context_store.clear()
+        init_structlog(config={"extensions": {"trace_id_bind": True}}, enable_trace_id=False)
+
+        assert "trace_id" not in _context_store
+
+        reset_structlog()
+        clear_context()
+
+    def test_trace_id_unique_per_call(self):
+        """验证每次调用生成不同的 UUID"""
+        from tkzs_structlog.api.core import _context_store
+
+        _context_store.clear()
+        bind_context(auto_trace_id=True)
+        trace1 = _context_store["trace_id"]
+
+        bind_context(auto_trace_id=True)
+        trace2 = _context_store["trace_id"]
+
+        assert trace1 != trace2
