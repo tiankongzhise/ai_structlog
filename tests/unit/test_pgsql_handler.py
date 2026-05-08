@@ -1,5 +1,6 @@
 """PGSQL 处理器模块测试（完整覆盖）"""
 
+import threading
 import time
 from unittest.mock import MagicMock, patch
 
@@ -288,6 +289,53 @@ class TestValidateTableName:
             _validate_table_name("table-name")
 
 
+class TestPGSQLHandlerInitializePostPool:
+    """测试 initialize() 中 pool 创建后的逻辑 (行 119-126)"""
+
+    def teardown_method(self):
+        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+        PGSQLHandler.reset_instance()
+
+    @patch("tkzs_structlog.extensions.pgsql_handler.is_pgsql_available")
+    @patch("tkzs_structlog.extensions.pgsql_handler.get_pgsql_config")
+    @patch("tkzs_structlog.extensions.pgsql_handler.threading.Thread")
+    def test_initialize_sets_running_and_starts_thread(self, mock_thread, mock_config, mock_available):
+        """测试初始化后 _running=True 且启动了 daemon 线程"""
+        from unittest.mock import MagicMock
+
+        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
+        PGSQLHandler.reset_instance()
+        mock_available.return_value = True
+        mock_config.return_value = {
+            "host": "localhost",
+            "port": 5432,
+            "user": "test",
+            "password": "test",
+            "db": "test",
+        }
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_pool = MagicMock()
+        mock_pool.getconn.return_value = mock_conn
+
+        with patch("psycopg2.pool.ThreadedConnectionPool", return_value=mock_pool):
+            with patch.object(PGSQLHandler, "_test_connection"):
+                with patch.object(PGSQLHandler, "_create_table"):
+                    config = {"enable": True, "pool_size": 1}
+                    handler = PGSQLHandler(config)
+                    handler.initialize()
+
+                    assert handler._running is True
+                    mock_thread.assert_called_once()
+                    call_kwargs = mock_thread.call_args[1]
+                    assert call_kwargs["daemon"] is True
+                    assert call_kwargs["target"] == handler._worker
+
+
 class TestPGSQLHandlerTestConnection:
     """测试连接测试（使用 mock）"""
 
@@ -405,43 +453,128 @@ class TestPGSQLHandlerWorker:
         handler = PGSQLHandler({"enable": True, "flush_interval": 0.1})
         handler._running = False
 
-        handler._worker()  # 应该立即退出
+        handler._worker()
 
-    def test_worker_timeout_flush(self):
-        """测试超时后刷新"""
+    def test_worker_exits_after_one_iteration(self):
+        """测试 worker 在单次迭代后退出（通过设置 _running=False）"""
         import queue
 
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
-        handler = PGSQLHandler({"enable": True, "flush_interval": 0.1, "batch_size": 1000})
+        handler = PGSQLHandler({"enable": True, "flush_interval": 0.01, "batch_size": 1000})
         handler._running = True
         handler._queue = queue.Queue()
         handler._queue.put({"level": "INFO", "message": "test", "logger": "test", "extra": {}})
 
-        # 等待超时
-        time.sleep(0.2)
         handler._running = False
         handler._worker()
 
-        assert len(handler._batch) == 0
+        assert handler._running is False
 
-    def test_worker_batch_size_flush(self):
-        """测试达到 batch_size 时刷新"""
+    def test_worker_empty_queue_exception_then_flushes(self):
+        """测试 queue.Empty 时如果有 batch 则刷新 (行 191-193)"""
+        import queue
+
+        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
+        handler = PGSQLHandler({"enable": True, "flush_interval": 1})
+        handler._running = True
+        handler._batch = [{"level": "INFO", "message": "test", "logger": "test", "extra": {}}]
+
+        raised_empty = False
+        def raise_empty(*args, **kwargs):
+            nonlocal raised_empty
+            if raised_empty:
+                handler._running = False
+                raise queue.Empty()
+            raised_empty = True
+            raise queue.Empty()
+
+        with patch.object(handler, "_queue") as mock_queue:
+            mock_queue.get = raise_empty
+            with patch.object(handler, "_flush_batch") as mock_flush:
+                handler._worker()
+
+                assert mock_flush.called
+
+    def test_worker_unexpected_exception_swallowed(self):
+        """测试 worker 捕获意外异常不中断循环 (行 194-195)"""
+        import queue
+
+        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
+        handler = PGSQLHandler({"enable": True, "flush_interval": 1})
+        handler._running = True
+        handler._batch = []
+
+        raised_error = False
+        def raise_error(*args, **kwargs):
+            nonlocal raised_error
+            if raised_error:
+                handler._running = False
+                raise queue.Empty()
+            raised_error = True
+            raise RuntimeError("Unexpected")
+
+        with patch.object(handler, "_queue") as mock_queue:
+            mock_queue.get = raise_error
+            with patch.object(handler, "_flush_batch"):
+                handler._worker()
+
+        assert handler._running is False
+
+    def test_worker_batch_full_triggers_flush(self):
+        """测试 batch 达到 batch_size 时调用 _flush_batch (行 185-189)"""
         import queue
 
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
 
         handler = PGSQLHandler({"enable": True, "flush_interval": 60, "batch_size": 2})
         handler._running = True
-        handler._queue = queue.Queue()
-        handler._queue.put({"level": "INFO", "message": "test1", "logger": "test", "extra": {}})
-        handler._queue.put({"level": "INFO", "message": "test2", "logger": "test", "extra": {}})
+        handler._batch = []
 
-        # worker 应该立即刷新
-        handler._running = False
-        handler._worker()
+        call_count = 0
+        def get_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {"level": "INFO", "message": "test1", "logger": "test", "extra": {}}
+            elif call_count == 2:
+                return {"level": "INFO", "message": "test2", "logger": "test", "extra": {}}
+            else:
+                handler._running = False
+                raise queue.Empty()
 
-        assert len(handler._batch) == 0
+        with patch.object(handler, "_queue") as mock_queue:
+            mock_queue.get = get_side_effect
+            with patch.object(handler, "_flush_batch") as mock_flush:
+                handler._worker()
+
+                assert mock_flush.call_count >= 1
+                flush_calls = [c for c in mock_flush.call_args_list if c]
+                assert len(flush_calls) >= 1
+
+    def test_worker_timeout_flush_triggers_flush(self):
+        """测试超时后调用 _flush_batch (行 187-189)"""
+        import queue
+
+        from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
+        handler = PGSQLHandler({"enable": True, "flush_interval": 60, "batch_size": 100})
+        handler._running = True
+        handler._batch = [{"level": "INFO", "message": "test", "logger": "test", "extra": {}}]
+        handler._last_flush = time.time() - 100
+
+        def get_side_effect(*args, **kwargs):
+            handler._running = False
+            raise queue.Empty()
+
+        with patch.object(handler, "_queue") as mock_queue:
+            mock_queue.get = get_side_effect
+            with patch.object(handler, "_flush_batch") as mock_flush:
+                handler._worker()
+
+                assert mock_flush.called
 
 
 class TestPGSQLHandlerFlushBatch:

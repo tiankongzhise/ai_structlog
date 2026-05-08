@@ -203,17 +203,27 @@ class TestEnvLoaderDotenv:
 
         from tkzs_structlog.config import env_loader
 
-        original_load_dotenv = env_loader.load_dotenv
-        env_loader.load_dotenv = None
+        # 模拟 dotenv 导入失败
+        original_import = builtins.__import__
+        import_attempted = [False]
 
+        def mock_import(name, *args, **kwargs):
+            if name == "dotenv" and not import_attempted[0]:
+                import_attempted[0] = True
+                raise ImportError("No module named 'dotenv'")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = mock_import
         try:
+            importlib.reload(env_loader)
             with caplog.at_level(logging.WARNING, logger="tkzs_structlog.config.env_loader"):
                 result = env_loader.load_env_config()
                 assert result["pgsql"]["host"] == "localhost"
                 # 验证警告日志
                 assert "python-dotenv not installed" in caplog.text
         finally:
-            env_loader.load_dotenv = original_load_dotenv
+            builtins.__import__ = original_import
+            importlib.reload(env_loader)
 
     def test_dotenv_file_exists(self, tmp_path, caplog):
         """测试 .env 文件存在时加载"""
@@ -228,6 +238,7 @@ class TestEnvLoaderDotenv:
 
         with (
             patch.object(env_loader.Path, "cwd", return_value=tmp_path),
+            patch.dict("os.environ", {}, clear=True),  # 清除环境变量，确保使用 .env 文件中的值
             caplog.at_level(logging.DEBUG, logger="tkzs_structlog.config.env_loader"),
         ):
             result = env_loader.load_env_config()
@@ -253,6 +264,7 @@ class TestEnvLoaderDotenv:
                 assert "python-dotenv not installed" in caplog.text
         finally:
             env_loader.load_dotenv = original_load_dotenv
+            importlib.reload(env_loader)
 
 
 class TestIsPgsqlAvailableImportError:

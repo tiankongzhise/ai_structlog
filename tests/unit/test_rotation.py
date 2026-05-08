@@ -1034,8 +1034,9 @@ class TestRotateWhenExtended:
         handler = CustomRotatingFileHandler(config)
 
         # 设置上次轮转为几小时前
-        old_time = datetime.now() - timedelta(hours=5)
-        handler._last_rotate_time = old_time.timestamp()
+        today_midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        handler._last_rotate_time = today_midnight.timestamp()
+        handler._last_rotate_time = today_midnight.timestamp()
 
         result = handler._should_rotate_by_time()
 
