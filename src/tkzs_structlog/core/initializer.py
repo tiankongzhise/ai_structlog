@@ -138,7 +138,7 @@ class StructlogInitializer:
         bridge = self._config.get("bridge_std_logging", True)
         renderer = structlog.dev.ConsoleRenderer()
 
-        # 标准库 logging 桥接：stdlib LoggerFactory + ProcessorFormatter（等价于文档要求的桥接效果）
+        # 标准 logging 桥接：stdlib LoggerFactory + ProcessorFormatter + recreate_defaults
         if bridge:
             self._use_stdlib_bridge = True
             self._bridge_renderer = renderer

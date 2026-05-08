@@ -94,6 +94,61 @@ class TestCustomTruncator:
         result = self.truncator.repr(obj)
         assert "CUSTOM_REPR" in result
 
+    def test_repr_max_depth_zero(self):
+        """max_depth=0 时 level>=0 恒真，repr 被截断并附警告"""
+        self.truncator.max_depth = 0
+        self.truncator.maxstring = 20
+        self.truncator.depth_warning = True
+
+        nested_obj = {"key": [1, 2, 3, 4, 5]}
+        result = self.truncator.repr(nested_obj, level=0)
+
+        assert "...[MAX_DEPTH=0]" in result
+        # 结果长度 ≈ maxstring + len(suffix)
+        assert len(result) <= 20 + len("...[MAX_DEPTH=0]")
+
+    def test_repr_max_depth_zero_no_warning(self):
+        """max_depth=0 且 depth_warning=False 时不附加警告后缀"""
+        self.truncator.max_depth = 0
+        self.truncator.maxstring = 20
+        self.truncator.depth_warning = False
+
+        obj = {"a": list(range(20))}
+        result = self.truncator.repr(obj, level=0)
+
+        assert "...[MAX_DEPTH=0]" not in result
+        assert len(result) <= 20
+
+    def test_custom_iterable_truncation(self):
+        """自定义可迭代对象按序列对称截断"""
+
+        class MyIterable:
+            def __iter__(self):
+                return iter(range(100))
+
+        self.truncator.maxlist = 4
+        obj = MyIterable()
+        result = self.truncator.repr(obj, level=0)
+
+        assert "..." in result
+        assert len(result) < 100
+
+    def test_custom_non_iterable_truncation(self):
+        """自定义不可迭代对象的 repr 受 maxstring 限制"""
+
+        class MyObj:
+            def __repr__(self):
+                return "x" * 500
+
+        self.truncator.maxstring = 30
+        self.truncator.max_depth = 5
+        obj = MyObj()
+        result = self.truncator.repr(obj, level=0)
+
+        assert isinstance(result, str)
+        # reprlib.Repr 默认对超长 repr 会截断；CustomTruncator 继承此行为
+        assert len(result) <= max(self.truncator.maxstring, 0)
+
     def test_repr_depth_warning(self):
         """测试深度警告"""
         self.truncator.max_depth = 2
