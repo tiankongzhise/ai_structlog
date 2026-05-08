@@ -3,7 +3,7 @@
 import logging
 import sys
 from io import StringIO
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -29,6 +29,32 @@ class TestSetupConsoleHandler:
         root_logger = logging.getLogger()
         handler_found = any(
             isinstance(h, logging.StreamHandler) and h.stream in (sys.stdout, sys.__stdout__)
+            for h in root_logger.handlers
+        )
+        assert handler_found
+
+    def test_console_handler_stdlib_bridge(self):
+        """测试使用 stdlib_bridge 和 renderer（覆盖 37-40 行）"""
+        import logging
+
+        from structlog.stdlib import ProcessorFormatter
+        from tkzs_structlog.extensions.handlers import setup_console_handler
+
+        config = {"enable": True}
+        mock_renderer = MagicMock()
+
+        # 清除现有的 StreamHandler
+        root_logger = logging.getLogger()
+        root_logger.handlers = [
+            h for h in root_logger.handlers if not isinstance(h, logging.StreamHandler)
+        ]
+
+        setup_console_handler(config, stdlib_bridge=True, renderer=mock_renderer)
+
+        # 验证处理器被添加且使用 ProcessorFormatter
+        handler_found = any(
+            isinstance(h, logging.StreamHandler)
+            and isinstance(h.formatter, ProcessorFormatter)
             for h in root_logger.handlers
         )
         assert handler_found
@@ -108,6 +134,61 @@ class TestSetupFileHandler:
         setup_file_handler(config)
 
         assert log_file.exists()
+
+    def test_file_handler_custom_rotate(self, tmp_path):
+        """测试使用自定义轮转处理器（覆盖 78-87 行）"""
+        from tkzs_structlog.extensions.handlers import setup_file_handler
+
+        log_file = tmp_path / "test.log"
+        config = {
+            "enable": True,
+            "file_path": str(log_file),
+            "custom_rotate": {
+                "enable": True,
+                "max_bytes": 1024,
+                "backup_count": 3,
+            },
+        }
+
+        setup_file_handler(config)
+
+        # 验证 CustomRotatingFileHandler 被添加
+        root_logger = logging.getLogger()
+        handler_found = any(
+            "CustomRotating" in type(h).__name__ for h in root_logger.handlers
+        )
+        assert handler_found
+
+    def test_file_handler_stdlib_bridge(self, tmp_path):
+        """测试 FileHandler 使用 stdlib_bridge（覆盖 110-112 行）"""
+        import logging
+
+        from structlog.stdlib import ProcessorFormatter
+        from tkzs_structlog.extensions.handlers import setup_file_handler
+
+        log_file = tmp_path / "test.log"
+        config = {
+            "enable": True,
+            "file_path": str(log_file),
+            "encoding": "utf-8",
+        }
+
+        mock_renderer = MagicMock()
+
+        # 清除现有的 FileHandler
+        root_logger = logging.getLogger()
+        root_logger.handlers = [
+            h for h in root_logger.handlers if not isinstance(h, logging.FileHandler)
+        ]
+
+        setup_file_handler(config, stdlib_bridge=True, renderer=mock_renderer)
+
+        # 验证处理器使用 ProcessorFormatter
+        handler_found = any(
+            isinstance(h, logging.FileHandler) and isinstance(h.formatter, ProcessorFormatter)
+            for h in root_logger.handlers
+        )
+        assert handler_found
 
 
 class TestColoredConsoleHandler:
@@ -353,3 +434,97 @@ class TestSetupOutputHandlers:
             errors = setup_output_handlers(config)
             assert len(errors) > 0
             assert "Redis" in errors[0]
+
+    def test_setup_output_handlers_pgsql_enabled_structlog_error(self):
+        """测试 PGSQL 启用但抛出 StructlogHandlerError（覆盖 204-207 行）"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+        from tkzs_structlog.exceptions import StructlogHandlerError
+
+        config = {
+            "handlers": {
+                "file": {"enable": False},
+                "pgsql": {"enable": True},
+            }
+        }
+
+        # Mock setup_pgsql_handler 抛出 StructlogHandlerError
+        with patch(
+            "tkzs_structlog.extensions.pgsql_handler.setup_pgsql_handler",
+            side_effect=StructlogHandlerError(
+                handler_name="pgsql",
+                reason="Connection failed",
+                fix_suggestion="Check connection",
+            ),
+        ):
+            errors = setup_output_handlers(config)
+            assert len(errors) > 0
+            assert "PGSQL" in errors[0]
+            assert "Connection failed" in errors[0]
+
+    def test_setup_output_handlers_pgsql_enabled_generic_exception(self):
+        """测试 PGSQL 启用但抛出通用异常（覆盖 206-207 行）"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+
+        config = {
+            "handlers": {
+                "file": {"enable": False},
+                "pgsql": {"enable": True},
+            }
+        }
+
+        # Mock setup_pgsql_handler 抛出通用异常
+        with patch(
+            "tkzs_structlog.extensions.pgsql_handler.setup_pgsql_handler",
+            side_effect=Exception("Unexpected error"),
+        ):
+            errors = setup_output_handlers(config)
+            assert len(errors) > 0
+            assert "PGSQL" in errors[0]
+            assert "fallback" in errors[0]
+
+    def test_setup_output_handlers_redis_enabled_structlog_error(self):
+        """测试 Redis 启用但抛出 StructlogHandlerError（覆盖 214-217 行）"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+        from tkzs_structlog.exceptions import StructlogHandlerError
+
+        config = {
+            "handlers": {
+                "file": {"enable": False},
+                "redis": {"enable": True},
+            }
+        }
+
+        # Mock setup_redis_handler 抛出 StructlogHandlerError
+        with patch(
+            "tkzs_structlog.extensions.redis_handler.setup_redis_handler",
+            side_effect=StructlogHandlerError(
+                handler_name="redis",
+                reason="Connection failed",
+                fix_suggestion="Check connection",
+            ),
+        ):
+            errors = setup_output_handlers(config)
+            assert len(errors) > 0
+            assert "Redis" in errors[0]
+            assert "Connection failed" in errors[0]
+
+    def test_setup_output_handlers_redis_enabled_generic_exception(self):
+        """测试 Redis 启用但抛出通用异常（覆盖 217-218 行）"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+
+        config = {
+            "handlers": {
+                "file": {"enable": False},
+                "redis": {"enable": True},
+            }
+        }
+
+        # Mock setup_redis_handler 抛出通用异常
+        with patch(
+            "tkzs_structlog.extensions.redis_handler.setup_redis_handler",
+            side_effect=Exception("Unexpected error"),
+        ):
+            errors = setup_output_handlers(config)
+            assert len(errors) > 0
+            assert "Redis" in errors[0]
+            assert "fallback" in errors[0]
