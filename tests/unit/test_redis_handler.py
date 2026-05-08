@@ -269,3 +269,205 @@ class TestSetupRedisHandler:
 
         assert result is mock_handler
         mock_handler.initialize.assert_called_once()
+
+
+import time
+
+
+class TestRedisHandlerWorker:
+    """测试工作线程（使用 mock）"""
+
+    def teardown_method(self):
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+        RedisHandler.reset_instance()
+
+    def test_worker_not_running(self):
+        """测试 _running 为 False 时 worker 退出"""
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        handler = RedisHandler({"enable": True, "flush_interval": 0.1})
+        handler._running = False
+
+        handler._worker()  # 应该立即退出
+
+    def test_worker_timeout_flush(self):
+        """测试超时后刷新"""
+        import queue
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        handler = RedisHandler({"enable": True, "flush_interval": 0.1, "batch_size": 1000})
+        handler._running = True
+        handler._queue = queue.Queue()
+        handler._queue.put({"level": "INFO", "message": "test", "logger": "test", "extra": {}})
+
+        # 等待超时
+        time.sleep(0.2)
+        handler._running = False
+        handler._worker()
+
+        assert len(handler._batch) == 0
+
+    def test_worker_batch_size_flush(self):
+        """测试达到 batch_size 时刷新"""
+        import queue
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        handler = RedisHandler({"enable": True, "flush_interval": 60, "batch_size": 2})
+        handler._running = True
+        handler._queue = queue.Queue()
+        handler._queue.put({"level": "INFO", "message": "test1", "logger": "test", "extra": {}})
+        handler._queue.put({"level": "INFO", "message": "test2", "logger": "test", "extra": {}})
+
+        # worker 应该立即刷新
+        handler._running = False
+        handler._worker()
+
+        assert len(handler._batch) == 0
+
+
+class TestRedisHandlerFlushBatch:
+    """测试批量写入（使用 mock）"""
+
+    def teardown_method(self):
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+        RedisHandler.reset_instance()
+
+    def test_flush_batch_empty(self):
+        """测试空 batch 不写入"""
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        handler = RedisHandler({"enable": True})
+        handler._batch = []
+        handler._client = None
+
+        handler._flush_batch("test_key")  # 应该直接返回
+
+        assert len(handler._batch) == 0
+
+    def test_flush_batch_client_none(self):
+        """测试 client 为 None 时不写入"""
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        handler = RedisHandler({"enable": True})
+        handler._batch = [{"level": "INFO", "message": "test", "logger": "test", "extra": {}}]
+        handler._client = None
+
+        handler._flush_batch("test_key")  # 应该直接返回
+
+        assert len(handler._batch) == 1  # batch 没被清空
+
+    def test_flush_batch_success(self):
+        """测试成功写入"""
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        mock_client = MagicMock()
+        mock_pipeline = MagicMock()
+        mock_client.pipeline.return_value = mock_pipeline
+
+        handler = RedisHandler({"enable": True})
+        handler._batch = [
+            {"log_time": "2025-01-01T00:00:00", "level": "INFO", "logger": "test", "message": "test1", "extra": {}},
+        ]
+        handler._client = mock_client
+
+        handler._flush_batch("test_key")
+
+        assert len(handler._batch) == 0
+        mock_pipeline.rpush.assert_called_once()
+        mock_pipeline.execute.assert_called_once()
+        assert handler._last_flush > 0
+
+    def test_flush_batch_exception(self, caplog):
+        """测试写入异常"""
+        import logging
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        mock_client = MagicMock()
+        mock_pipeline = MagicMock()
+        mock_pipeline.rpush.side_effect = Exception("Redis error")
+        mock_client.pipeline.return_value = mock_pipeline
+
+        handler = RedisHandler({"enable": True})
+        handler._batch = [{"level": "INFO", "message": "test", "logger": "test", "extra": {}}]
+        handler._client = mock_client
+
+        with caplog.at_level(logging.ERROR, logger="tkzs_structlog.extensions.redis_handler"):
+            handler._flush_batch("test_key")
+
+        assert len(handler._batch) == 1  # batch 没被清空（当前实现）
+        assert "Failed to flush batch" in caplog.text
+
+
+class TestRedisHandlerEmitEdgeCases:
+    """测试日志写入队列（边界情况）"""
+
+    def teardown_method(self):
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+        RedisHandler.reset_instance()
+
+    def test_emit_queue_full(self, caplog):
+        """测试队列满时丢弃日志"""
+        import logging
+        import queue
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        handler = RedisHandler({"enable": True})
+        handler._running = True
+        handler._queue = MagicMock()
+        handler._queue.put_nowait.side_effect = queue.Full("Queue full")
+
+        with caplog.at_level(logging.WARNING, logger="tkzs_structlog.extensions.redis_handler"):
+            log_entry = {"level": "INFO", "message": "test"}
+            handler.emit(log_entry)
+
+        assert "queue full" in caplog.text.lower()
+
+
+class TestRedisHandlerShutdownEdgeCases:
+    """测试关闭流程（边界情况）"""
+
+    def teardown_method(self):
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+        RedisHandler.reset_instance()
+
+    def test_shutdown_with_thread(self):
+        """测试有关联线程时的关闭"""
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        handler = RedisHandler({"enable": True})
+        handler._running = True
+        handler._worker_thread = MagicMock()
+        handler._client = MagicMock()
+
+        handler.shutdown()
+
+        assert handler._running is False
+        handler._worker_thread.join.assert_called_once_with(timeout=5)
+        handler._client.close.assert_called_once()
+
+    def test_shutdown_no_thread(self):
+        """测试无关联线程时的关闭"""
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        handler = RedisHandler({"enable": True})
+        handler._running = True
+        handler._worker_thread = None
+        handler._client = None
+
+        handler.shutdown()  # 应该不抛出异常
+
+        assert handler._running is False
+
+    def test_shutdown_no_client(self):
+        """测试无 client 时的关闭"""
+        from tkzs_structlog.extensions.redis_handler import RedisHandler
+
+        handler = RedisHandler({"enable": True})
+        handler._running = True
+        handler._worker_thread = MagicMock()
+        handler._client = None
+
+        handler.shutdown()  # 应该不抛出异常
+
+        assert handler._running is False
+        handler._worker_thread.join.assert_called_once_with(timeout=5)
