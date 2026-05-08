@@ -3,6 +3,7 @@
 import logging
 import sys
 from io import StringIO
+from unittest.mock import patch
 
 import pytest
 
@@ -286,3 +287,69 @@ class TestHandlerEdgeCases:
                 handler.emit(record)
                 # handleError 应该被调用
                 mock_handle_error.assert_called_once_with(record)
+
+
+class TestSetupOutputHandlers:
+    """测试 setup_output_handlers 函数"""
+
+    def test_setup_output_handlers_no_pgsql_redis(self):
+        """测试无 PGSQL/Redis 配置"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+
+        config = {
+            "handlers": {
+                "console": {"enable": False},
+                "file": {"enable": False},
+                "pgsql": {"enable": False},
+                "redis": {"enable": False},
+            }
+        }
+
+        errors = setup_output_handlers(config)
+        assert isinstance(errors, list)
+
+    def test_setup_output_handlers_pgsql_disabled(self):
+        """测试 PGSQL 禁用"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+
+        config = {
+            "handlers": {
+                "file": {"enable": False},
+                "pgsql": {"enable": False},
+            }
+        }
+
+        errors = setup_output_handlers(config)
+        assert errors == []
+
+    def test_setup_output_handlers_pgsql_enabled_no_dependency(self):
+        """测试 PGSQL 启用但依赖缺失"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+
+        config = {
+            "handlers": {
+                "file": {"enable": False},
+                "pgsql": {"enable": True},
+            }
+        }
+
+        with patch("tkzs_structlog.extensions.pgsql_handler.is_pgsql_available", return_value=False):
+            errors = setup_output_handlers(config)
+            assert len(errors) > 0
+            assert "PGSQL" in errors[0]
+
+    def test_setup_output_handlers_redis_enabled_no_dependency(self):
+        """测试 Redis 启用但依赖缺失"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+
+        config = {
+            "handlers": {
+                "file": {"enable": False},
+                "redis": {"enable": True},
+            }
+        }
+
+        with patch("tkzs_structlog.extensions.redis_handler.is_redis_available", return_value=False):
+            errors = setup_output_handlers(config)
+            assert len(errors) > 0
+            assert "Redis" in errors[0]

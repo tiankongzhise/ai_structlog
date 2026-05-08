@@ -158,3 +158,44 @@ def setup_colored_console_handler(config: dict[str, Any]) -> None:
     )
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
+
+
+def setup_output_handlers(config: dict[str, Any]) -> list[str]:
+    """设置所有输出处理器
+
+    当 PGSQL 或 Redis 输出失败时，自动降级到文件输出。
+
+    Args:
+        config: 完整配置
+
+    Returns:
+        错误信息列表（用于记录降级警告）
+    """
+    errors: list[str] = []
+
+    pgsql_config = config.get("handlers", {}).get("pgsql", {})
+    if pgsql_config.get("enable", False):
+        try:
+            from tkzs_structlog.extensions.pgsql_handler import setup_pgsql_handler
+
+            setup_pgsql_handler(pgsql_config)
+        except StructlogHandlerError as e:
+            errors.append(f"PGSQL: {e.reason}, fallback to file")
+        except Exception:
+            errors.append("PGSQL connection failed, fallback to file")
+
+    redis_config = config.get("handlers", {}).get("redis", {})
+    if redis_config.get("enable", False):
+        try:
+            from tkzs_structlog.extensions.redis_handler import setup_redis_handler
+
+            setup_redis_handler(redis_config)
+        except StructlogHandlerError as e:
+            errors.append(f"Redis: {e.reason}, fallback to file")
+        except Exception:
+            errors.append("Redis connection failed, fallback to file")
+
+    file_config = config.get("handlers", {}).get("file", {})
+    setup_file_handler(file_config)
+
+    return errors

@@ -12,15 +12,13 @@ import structlog
 
 from tkzs_structlog.config import (
     get_extension_config,
-    get_handler_config,
     get_processor_names,
     load_config,
 )
 from tkzs_structlog.core.logger_factory import get_logger_factory, reset_logger_factory
 from tkzs_structlog.core.processor_builder import get_processor_builder, reset_processor_builder
 from tkzs_structlog.extensions.handlers import (
-    setup_console_handler,
-    setup_file_handler,
+    setup_output_handlers,
 )
 
 if TYPE_CHECKING:
@@ -168,24 +166,17 @@ class StructlogInitializer:
             )
 
     def _setup_handlers(self) -> None:
-        """设置输出处理器"""
-        # 控制台处理器
-        console_config = get_handler_config(self._config, "console")
-        if console_config.get("enable", False):
-            setup_console_handler(
-                console_config,
-                stdlib_bridge=self._use_stdlib_bridge,
-                renderer=self._bridge_renderer,
-            )
+        """设置输出处理器
 
-        # 文件处理器
-        file_config = get_handler_config(self._config, "file")
-        if file_config.get("enable", False):
-            setup_file_handler(
-                file_config,
-                stdlib_bridge=self._use_stdlib_bridge,
-                renderer=self._bridge_renderer,
-            )
+        包括控制台、文件、PGSQL、Redis 处理器。
+        当 PGSQL 或 Redis 失败时，自动降级到文件输出。
+        """
+        errors = setup_output_handlers(self._config)
+
+        if errors:
+            logger = logging.getLogger("structlog")
+            for error in errors:
+                logger.warning(error)
 
     def _setup_logger_factory(self) -> None:
         """设置日志工厂"""
