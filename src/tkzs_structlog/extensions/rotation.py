@@ -195,7 +195,7 @@ def get_compress_backend(method: str) -> CompressBackend:
 # ==================== 自定义轮转处理器 ====================
 
 
-class CustomRotatingFileHandler:
+class CustomRotatingFileHandler(logging.Handler):
     """自定义复合轮转文件处理器
 
     支持：
@@ -203,9 +203,12 @@ class CustomRotatingFileHandler:
     - 日期轮转 (rotate_when)
     - 自动压缩
     - 按数量/天数清理
+
+    继承 logging.Handler，可直接添加到 logger。
     """
 
     def __init__(self, config: dict[str, Any]) -> None:
+        super().__init__()  # 必须先调用父类初始化，确保 _name 等属性存在
         self.config = config
         self.file_path = Path(config["file_path"])
         self.encoding = config.get("encoding", "utf-8")
@@ -414,6 +417,22 @@ class CustomRotatingFileHandler:
                 except OSError:
                     pass
 
+    def emit(self, record: logging.LogRecord) -> None:
+        """写日志到文件（logging.Handler 接口）
+
+        Args:
+            record: 日志记录
+        """
+        try:
+            msg = self.format(record)
+            # 使用 open 直接写文件，让 CustomRotatingFileHandler 管理轮转
+            with open(self.file_path, "a", encoding=self.encoding) as f:
+                f.write(msg + "\n")
+            # 检查是否需要轮转
+            self.check_and_rotate()
+        except Exception:
+            self.handleError(record)
+
     def check_and_rotate(self) -> None:
         """检查并执行轮转"""
         if self._should_rotate_by_size() or self._should_rotate_by_time():
@@ -423,6 +442,7 @@ class CustomRotatingFileHandler:
         """关闭处理器"""
         if self._compress_executor:
             self._compress_executor.shutdown(wait=True)
+        super().close()
 
     def __del__(self) -> None:
         """析构"""
