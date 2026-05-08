@@ -228,6 +228,7 @@ class PGSQLHandler:
         except Exception as e:
             logger.error(f"Failed to flush batch to PGSQL: {e}")
             conn.rollback()
+            self._batch.clear()  # 异常时清空 batch，避免重复处理
         finally:
             cursor.close()
             self._pool.putconn(conn)
