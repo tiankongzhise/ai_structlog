@@ -23,8 +23,9 @@ with open("test_result.txt", "w", encoding="utf-8") as f:
             "-n",
             "auto",  # 多进程
             "--cov=tkzs_structlog",  # <--- 改成你要统计覆盖率的包名
-            "--cov-report=term",  # 控制台输出
+            "--cov-report=term-missing",  # 控制台输出（显示未覆盖行）
             "--cov-report=html",  # HTML报告
+            "--cov-append",  # 多进程覆盖率合并
         ],
         cwd=WORK_DIR,
         stdout=subprocess.PIPE,
