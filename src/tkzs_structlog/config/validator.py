@@ -40,11 +40,32 @@ class HandlerFileConfig(BaseModel):
     custom_rotate: HandlerFileRotateConfig | None = None
 
 
+class HandlerPgsqlConfig(BaseModel):
+    """PGSQL 处理器配置"""
+
+    enable: bool = False
+    table_name: str = "structlog_logs"
+    batch_size: int = Field(default=100, ge=1, le=1000)
+    flush_interval: int = Field(default=5, ge=1, le=60)
+    pool_size: int = Field(default=5, ge=1, le=20)
+
+
+class HandlerRedisConfig(BaseModel):
+    """Redis 处理器配置"""
+
+    enable: bool = False
+    key_prefix: str = "structlog:"
+    batch_size: int = Field(default=100, ge=1, le=1000)
+    flush_interval: int = Field(default=5, ge=1, le=60)
+
+
 class HandlersConfig(BaseModel):
     """处理器配置"""
 
     console: HandlerConsoleConfig = Field(default_factory=HandlerConsoleConfig)
     file: HandlerFileConfig = Field(default_factory=HandlerFileConfig)
+    pgsql: HandlerPgsqlConfig = Field(default_factory=HandlerPgsqlConfig)
+    redis: HandlerRedisConfig = Field(default_factory=HandlerRedisConfig)
 
 
 class LogTruncateConfig(BaseModel):
