@@ -9,19 +9,32 @@ from __future__ import annotations
 import fnmatch
 import re
 import reprlib
+import threading
 from functools import lru_cache
 from typing import Any, Type
 
 from tkzs_structlog.config import get_extension_config
 
-# 全局配置存储
+# 全局配置存储（线程安全）
 _global_config: dict[str, Any] = {}
+_config_lock = threading.RLock()
 
 
 def set_global_config(config: dict[str, Any]) -> None:
-    """设置全局配置"""
+    """设置全局配置（线程安全）"""
     global _global_config
-    _global_config = config
+    with _config_lock:
+        _global_config = config
+
+
+def get_global_config() -> dict[str, Any]:
+    """获取全局配置（线程安全）
+
+    Returns:
+        全局配置字典的副本
+    """
+    with _config_lock:
+        return _global_config.copy()
 
 
 @lru_cache(maxsize=1024)
@@ -209,10 +222,11 @@ def TruncateProcessor(logger: Any, method_name: str, event_dict: dict[str, Any])
     if not isinstance(event_dict, dict):
         return event_dict
 
-    if not _global_config:
+    config = get_global_config()
+    if not config:
         return event_dict
 
-    truncate_config = get_extension_config(_global_config, "log_truncate")
+    truncate_config = get_extension_config(config, "log_truncate")
     if not truncate_config or not truncate_config.get("enable", False):
         return event_dict
 
@@ -252,10 +266,11 @@ def SensitiveDataProcessor(logger: Any, method_name: str, event_dict: dict[str, 
     if not isinstance(event_dict, dict):
         return event_dict
 
-    if not _global_config:
+    config = get_global_config()
+    if not config:
         return event_dict
 
-    sensitive_fields = _global_config.get("extensions", {}).get("sensitive_fields", [])
+    sensitive_fields = config.get("extensions", {}).get("sensitive_fields", [])
     if not sensitive_fields:
         return event_dict
 
@@ -288,10 +303,11 @@ def FilterProcessor(logger: Any, method_name: str, event_dict: dict[str, Any]) -
     if not isinstance(event_dict, dict):
         return event_dict
 
-    if not _global_config:
+    config = get_global_config()
+    if not config:
         return event_dict
 
-    filter_rules = _global_config.get("extensions", {}).get("filter_rules", {})
+    filter_rules = config.get("extensions", {}).get("filter_rules", {})
     exclude_fields = filter_rules.get("exclude", [])
     include_fields = filter_rules.get("include", [])
 

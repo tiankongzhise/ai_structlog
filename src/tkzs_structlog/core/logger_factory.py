@@ -22,7 +22,6 @@ class LoggerFactory:
     def __init__(self) -> None:
         self._is_initialized = False
         self._logger_name: str = "structlog_auto"
-        self._logger: WrappedLogger | None = None
 
     def initialize(self, logger_name: str) -> None:
         """初始化日志工厂
@@ -32,7 +31,6 @@ class LoggerFactory:
         """
         self._is_initialized = True
         self._logger_name = logger_name
-        self._logger = None  # 将通过 get_logger 获取
 
     def get_logger(
         self,
@@ -77,7 +75,6 @@ class LoggerFactory:
     def reset(self) -> None:
         """重置日志工厂"""
         self._is_initialized = False
-        self._logger = None
 
 
 # 全局日志工厂实例
