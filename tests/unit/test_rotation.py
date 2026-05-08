@@ -1,6 +1,7 @@
 """轮转模块测试"""
 
 import gzip
+import logging
 import os
 import time
 from datetime import datetime
@@ -1345,3 +1346,59 @@ class TestCleanupEdgeCases:
         handler = CustomRotatingFileHandler(config)
 
         handler.cleanup()
+
+
+class TestEmitEdgeCases:
+    """测试 emit 边界情况"""
+
+    def test_emit_handle_error(self, tmp_path):
+        """测试 emit 中发生异常时调用 handleError（覆盖 426-434 行）"""
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": False},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
+        )
+
+        # 模拟 open 抛出异常
+        with patch("builtins.open", side_effect=OSError("write error")):
+            with patch.object(handler, "handleError") as mock_handle_error:
+                handler.emit(record)
+                mock_handle_error.assert_called_once_with(record)
+
+    def test_emit_check_and_rotate(self, tmp_path):
+        """测试 emit 后调用 check_and_rotate"""
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        config = {
+            "file_path": str(log_file),
+            "custom_rotate": {"enable": False},
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
+        )
+
+        with patch.object(handler, "check_and_rotate") as mock_check:
+            handler.emit(record)
+            mock_check.assert_called_once()
