@@ -156,6 +156,8 @@ class StructlogInitializer:
                 cache_logger_on_first_use=True,
             )
             sl_stdlib.recreate_defaults()
+            # recreate_defaults() 会重置根日志器级别，需要重新设置
+            self._setup_log_level()
         else:
             self._use_stdlib_bridge = False
             self._bridge_renderer = None
