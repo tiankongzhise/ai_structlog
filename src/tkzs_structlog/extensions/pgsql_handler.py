@@ -103,7 +103,7 @@ class PGSQLHandler:
             )
 
         try:
-            from psycopg2 import pool
+            from psycopg2 import pool  # type: ignore[import-untyped]
 
             env_config = get_pgsql_config()
             self._pool = pool.ThreadedConnectionPool(
@@ -119,9 +119,7 @@ class PGSQLHandler:
             self._test_connection()
             self._create_table()
             self._running = True
-            self._worker_thread = threading.Thread(
-                target=self._worker, daemon=True
-            )
+            self._worker_thread = threading.Thread(target=self._worker, daemon=True)
             self._worker_thread.start()
             logger.info("PGSQL handler initialized successfully")
 
@@ -183,9 +181,7 @@ class PGSQLHandler:
                 self._batch.append(log_entry)
 
                 batch_size = self.config.get("batch_size", 100)
-                if len(self._batch) >= batch_size or (
-                    time.time() - self._last_flush > timeout
-                ):
+                if len(self._batch) >= batch_size or (time.time() - self._last_flush > timeout):
                     self._flush_batch()
 
             except queue.Empty:
@@ -209,8 +205,7 @@ class PGSQLHandler:
 
             for entry in self._batch:
                 cursor.execute(
-                    f"INSERT INTO {table_name} (log_time, level, logger, message, extra) "
-                    "VALUES (%s, %s, %s, %s, %s)",
+                    f"INSERT INTO {table_name} (log_time, level, logger, message, extra) VALUES (%s, %s, %s, %s, %s)",
                     (
                         entry.get("log_time", datetime.now()),
                         entry.get("level", "INFO"),

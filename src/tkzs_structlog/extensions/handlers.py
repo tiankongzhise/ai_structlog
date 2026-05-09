@@ -184,18 +184,32 @@ def setup_colored_console_handler(config: dict[str, Any]) -> None:
     root_logger.addHandler(handler)
 
 
-def setup_output_handlers(config: dict[str, Any]) -> list[str]:
+def setup_output_handlers(
+    config: dict[str, Any],
+    *,
+    stdlib_bridge: bool = False,
+    renderer: Any | None = None,
+) -> list[str]:
     """设置所有输出处理器
 
     当 PGSQL 或 Redis 输出失败时，自动降级到文件输出。
 
     Args:
         config: 完整配置
+        stdlib_bridge: 是否已通过 structlog.stdlib 桥接（使用 ProcessorFormatter）
+        renderer: 桥接时的最终渲染器实例
 
     Returns:
         错误信息列表（用于记录降级警告）
     """
     errors: list[str] = []
+
+    console_config = config.get("handlers", {}).get("console", {})
+    if console_config.get("enable", False):
+        try:
+            setup_console_handler(console_config, stdlib_bridge=stdlib_bridge, renderer=renderer)
+        except Exception:
+            errors.append("Console handler setup failed, continue without console")
 
     pgsql_config = config.get("handlers", {}).get("pgsql", {})
     if pgsql_config.get("enable", False):
@@ -220,6 +234,6 @@ def setup_output_handlers(config: dict[str, Any]) -> list[str]:
             errors.append("Redis connection failed, fallback to file")
 
     file_config = config.get("handlers", {}).get("file", {})
-    setup_file_handler(file_config)
+    setup_file_handler(file_config, stdlib_bridge=stdlib_bridge, renderer=renderer)
 
     return errors

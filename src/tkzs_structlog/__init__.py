@@ -5,6 +5,9 @@ Structlog 自动化配置工具，支持配置驱动的日志截断、复合轮�
 
 from __future__ import annotations
 
+from importlib.metadata import version as get_version
+from typing import Any
+
 from tkzs_structlog.api import (
     bind_context,
     clear_context,
@@ -39,9 +42,19 @@ from tkzs_structlog.exceptions import (
     StructlogProcessorInstantiateError,
 )
 
-__version__ = "0.1.0"
+
+def __getattr__(name: str) -> Any:
+    if name == "__version__":
+        try:
+            return get_version("tkzs-structlog")
+        except Exception:
+            return "0.0.0"
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
+    # Version
+    "__version__",
     # API
     "init_structlog",
     "get_logger",

@@ -38,7 +38,6 @@ dependencies = [
   "structlog>=23.1.0",
   "pyjson5>=2.0.0",
   "pydantic>=2.0",
-  "psycopg2-binary>=2.9.12",
 ]
 
 [project.optional-dependencies]
@@ -77,9 +76,6 @@ Repository = "https://github.com/tiankongzhise/ai_structlog"
 Issues = "https://github.com/tiankongzhise/ai_structlog/issues"
 
 # ==================== Hatch 配置（修复路径）====================
-[tool.hatch.build]
-sources = ["src", "pyproject.toml", "LICENSE", "README.md"]
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/tkzs_structlog"]
 tag = "py3-none-any"

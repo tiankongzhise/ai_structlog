@@ -107,7 +107,8 @@ def is_pgsql_available() -> bool:
         是否可用
     """
     try:
-        import psycopg2  # noqa: F401
+        import psycopg2  # type: ignore[import-untyped]  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -121,6 +122,7 @@ def is_redis_available() -> bool:
     """
     try:
         import redis  # noqa: F401
+
         return True
     except ImportError:
         return False

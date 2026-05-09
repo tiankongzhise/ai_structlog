@@ -155,9 +155,6 @@ class StructlogInitializer:
                 context_class=dict,
                 cache_logger_on_first_use=True,
             )
-            sl_stdlib.recreate_defaults()
-            # recreate_defaults() 会重置根日志器级别，需要重新设置
-            self._setup_log_level()
         else:
             self._use_stdlib_bridge = False
             self._bridge_renderer = None
@@ -174,7 +171,15 @@ class StructlogInitializer:
         包括控制台、文件、PGSQL、Redis 处理器。
         当 PGSQL 或 Redis 失败时，自动降级到文件输出。
         """
-        errors = setup_output_handlers(self._config)
+        # 清除根日志器已有处理器，避免重复添加
+        root_logger = logging.getLogger()
+        root_logger.handlers.clear()
+
+        errors = setup_output_handlers(
+            self._config,
+            stdlib_bridge=self._use_stdlib_bridge,
+            renderer=self._bridge_renderer,
+        )
 
         if errors:
             logger = logging.getLogger("structlog")
