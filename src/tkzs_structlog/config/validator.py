@@ -23,7 +23,7 @@ class HandlerFileRotateConfig(BaseModel):
     max_bytes: int = Field(default=10485760, ge=0)  # 10MB
     backup_count: int = Field(default=10, ge=0)
     retain_days: int = Field(default=7, ge=0)
-    rotate_when: Literal["H", "D", "MIDNIGHT", "W0", "W6"] = "MIDNIGHT"
+    rotate_when: Literal["H", "D", "MIDNIGHT", "W0", "W1", "W2", "W3", "W4", "W5", "W6"] = "MIDNIGHT"
     interval: int = Field(default=1, ge=1)
     compress: bool = False
     compress_method: Literal["gzip", "lz4", "zstd"] = "gzip"
