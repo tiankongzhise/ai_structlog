@@ -107,9 +107,11 @@ def load_config_file(config_path: str | Path) -> dict[str, Any]:
         # 尝试 JSONC 解析（支持注释）；空文件或仅注释降级为空字典后走默认合并
         try:
             config = pyjson5.loads(content)
-        except Exception as e:
-            if type(e).__name__ == "Json5EOF" or "No JSON data found" in str(e):
-                return {}
+        except pyjson5.Json5EOF:
+            # 空文件/仅注释 → 降级为空字典，由 load_config 合并默认配置
+            return {}
+        except Exception:
+            # 其他异常（含 pyjson5 解析错误），尝试标准 JSON 兜底
             try:
                 config = json.loads(content)
             except json.JSONDecodeError:

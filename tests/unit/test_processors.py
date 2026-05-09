@@ -547,3 +547,66 @@ class TestTruncatorAdvanced:
 
         result = FilterProcessor(None, "info", event_dict)
         assert result == event_dict
+
+
+class TestTruncatorConfigHash:
+    """测试 CustomTruncator.set_config 配置变更检测 — 回归验证 DEFECT-04"""
+
+    def test_set_config_skip_unchanged(self):
+        """测试配置未变更时跳过重复赋值"""
+        from tkzs_structlog.extensions.processors import _truncator
+
+        # 首次设置
+        _truncator.set_config(
+            max_depth=3, str_max_length=256, seq_max_elements=50,
+            dict_max_pairs=30, depth_warning=True,
+        )
+        hash1 = _truncator._config_hash
+
+        # 相同配置再次设置 — 应该跳过（hash 不变）
+        _truncator.set_config(
+            max_depth=3, str_max_length=256, seq_max_elements=50,
+            dict_max_pairs=30, depth_warning=True,
+        )
+        hash2 = _truncator._config_hash
+
+        # hash 不变，说明跳过了属性赋值
+        assert hash1 == hash2
+
+    def test_set_config_updates_on_change(self):
+        """测试配置变更时正常更新"""
+        from tkzs_structlog.extensions.processors import _truncator
+
+        _truncator.set_config(
+            max_depth=3, str_max_length=256, seq_max_elements=50,
+            dict_max_pairs=30, depth_warning=True,
+        )
+        hash1 = _truncator._config_hash
+
+        # 修改 max_depth
+        _truncator.set_config(
+            max_depth=5, str_max_length=256, seq_max_elements=50,
+            dict_max_pairs=30, depth_warning=True,
+        )
+        hash2 = _truncator._config_hash
+
+        # hash 应该变化
+        assert hash1 != hash2
+        assert _truncator.max_depth == 5
+
+    def test_set_config_ignore_fields_tuple_conversion(self):
+        """测试 ignore_fields 等列表参数正确参与哈希计算"""
+        from tkzs_structlog.extensions.processors import _truncator
+
+        _truncator.set_config(ignore_types=["A", "B"])
+        hash1 = _truncator._config_hash
+
+        # 相同列表（内容相同）应该不更新
+        _truncator.set_config(ignore_types=["A", "B"])
+        hash2 = _truncator._config_hash
+        assert hash1 == hash2
+
+        # 不同列表应该更新
+        _truncator.set_config(ignore_types=["A", "C"])
+        hash3 = _truncator._config_hash
+        assert hash1 != hash3

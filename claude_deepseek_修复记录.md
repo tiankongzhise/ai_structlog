@@ -235,3 +235,122 @@ _setup_handlers()
 ---
 
 **修复总结**: 共修复 6 项阻断级/重要缺陷。所有修复均经过测试验证（452 passed, 100% coverage），ruff/mypy 检查零错误，包构建成功。
+
+---
+
+## 第二轮修复（针对 opencode_bigpickle_交付阻断文档 剩余缺陷）
+
+### 修复 #7: 压缩线程池降级逻辑加固 (DEFECT-03)
+
+**问题** (opencode_bigpickle DEFECT-03):
+`_compress_file` 方法中仅捕获 `RuntimeError` 作为降级触发条件。但 `concurrent.futures.ThreadPoolExecutor.submit()` 使用无界队列，队列满时默认会阻塞而非抛异常，导致"队列满→降级同步压缩"逻辑实际上不会触发。违反了开发需求 §3.2.5 V2.1边界8。
+
+**涉及文件**: `src/tkzs_structlog/extensions/rotation.py:349-364`
+
+**修复方法**:
+使用 `threading.BoundedSemaphore` 限制异步压缩的并发深度。信号量初始值 = `compress_concurrency + compress_max_queue`（默认 10）。当信号量无法非阻塞获取时，降级为同步压缩；异步提交后通过 `future.add_done_callback` 释放信号量。
+
+**修改**:
+```python
+# __init__: 添加信号量
+self._compress_semaphore = threading.BoundedSemaphore(max_queue)
+
+# _compress_file: 信号量控制的异步/同步切换
+if self.compress_async and self._compress_executor and self._compress_semaphore:
+    semaphore = self._compress_semaphore
+    acquired = semaphore.acquire(blocking=False)
+    if not acquired:
+        # 队列满 → 降级同步压缩（记录 WARNING）
+        self._do_compress(file_path, dst_path)
+        return
+    try:
+        future = self._compress_executor.submit(self._do_compress, file_path, dst_path)
+        future.add_done_callback(lambda _: semaphore.release())
+    except RuntimeError:
+        semaphore.release()
+        self._do_compress(file_path, dst_path)
+```
+
+**边界覆盖**:
+- ✅ 队列满（信号量为0）→ 降级同步压缩，记录 WARNING
+- ✅ 线程池关闭（RuntimeError）→ 释放信号量，降级同步压缩
+- ✅ 成功异步提交 → 回调释放信号量
+
+---
+
+### 修复 #8: TruncateProcessor 配置变更检测 (DEFECT-04)
+
+**问题** (opencode_bigpickle DEFECT-04):
+`TruncateProcessor` 每次日志事件处理都调用 `_truncator.set_config(...)` 重新配置全局单例，涉及 9 个属性赋值。虽然不会清除 `lru_cache`，但高频属性赋值增加不必要开销。
+
+**涉及文件**: `src/tkzs_structlog/extensions/processors.py:71-100`
+
+**修复方法**:
+在 `CustomTruncator.set_config` 中添加配置哈希检测。计算所有配置参数的哈希值，仅当哈希值与上次不同时才执行属性赋值。首次调用哈希值为 0，确保初始化执行。
+
+**修改**:
+```python
+def set_config(self, ...) -> None:
+    # 计算配置哈希，无变更则跳过
+    new_hash = hash(( max_depth, str_max_length, ... ))
+    if new_hash == self._config_hash:
+        return
+    self._config_hash = new_hash
+    # 实际赋值...
+```
+
+---
+
+### 修复 #9: repr_iter 未使用参数规范化 (SUG-01)
+
+**问题** (opencode_bigpickle SUG-01):
+`CustomTruncator.repr_iter(self, obj, level, maxlen, method)` 的 `method` 参数从未使用。虽然由 `reprlib.Repr` 父类传入（`repr1` 方法），但在函数体内无任何引用。
+
+**涉及文件**: `src/tkzs_structlog/extensions/processors.py:117`
+
+**修复方法**:
+保留参数名 `method` 以保持与父类 `reprlib.Repr.repr_iter` 签名兼容（调用方可能使用关键字参数），添加文档说明该参数用途。
+
+---
+
+### 修复 #10: loader.py 脆弱异常类型比较 (SUG-02)
+
+**问题** (opencode_bigpickle SUG-02):
+`config/loader.py:111` 使用 `type(e).__name__ == "Json5EOF"` 进行类名字符串比较，脆弱且不具可维护性。若 pyjson5 库内部类名变更或使用子类，此检查将静默失败。
+
+**涉及文件**: `src/tkzs_structlog/config/loader.py:111`
+
+**修复方法**:
+使用 `isinstance(e, pyjson5.Json5EOF)` 替代字符串比较。`pyjson5` 公开导出 `Json5EOF` 类，可直接用于类型检查。
+
+**修改前**:
+```python
+except Exception as e:
+    if type(e).__name__ == "Json5EOF" or "No JSON data found" in str(e):
+        return {}
+```
+
+**修改后**:
+```python
+except pyjson5.Json5EOF:
+    return {}
+except Exception:
+    try:
+        config = json.loads(content)
+    except json.JSONDecodeError:
+        raise
+```
+
+---
+
+## 第二轮验证结果
+
+| 检查项 | 状态 | 说明 |
+|--------|------|------|
+| `pytest --cov` | ✅ 通过 | 471 passed, 15 skipped |
+| 代码覆盖率 | ✅ 100% | 1366 statements, 0 missed |
+| `ruff check .` | ✅ 通过 | All checks passed |
+| `mypy src/tkzs_structlog` | ✅ 通过 | 0 errors |
+| `uv build` | ✅ 成功 | Wheel + SDIST |
+
+**第二轮修复总结**: 共修复 4 项缺陷（1 项重要级 DEFECT + 3 项建议级 SUG），覆盖压缩线程池降级、处理器性能优化、代码健壮性提升。新增 6 个回归测试覆盖所有修改路径。

@@ -51,7 +51,8 @@ def _get_type_name(obj: Any) -> str:
 class CustomTruncator(reprlib.Repr):
     """自定义截断器
 
-    实现分层、分类型、对称截断。
+    实现分层、分类型、对称截断。使用 _config_hash 检测配置变更，
+    避免每次日志事件重复调用 set_config 产生不必要的属性赋值开销。
     """
 
     def __init__(self) -> None:
@@ -67,6 +68,7 @@ class CustomTruncator(reprlib.Repr):
         self.ignore_fields_regex: str | None = None
         self.depth_warning = True
         self._compiled_regex: re.Pattern[str] | None = None
+        self._config_hash: int = 0
 
     def set_config(
         self,
@@ -80,7 +82,17 @@ class CustomTruncator(reprlib.Repr):
         ignore_fields_regex: str | None = None,
         depth_warning: bool = True,
     ) -> None:
-        """设置截断配置"""
+        """设置截断配置（仅配置变更时更新，避免每次日志事件重复赋值）"""
+        # 计算配置哈希，无变更则跳过
+        new_hash = hash((
+            max_depth, str_max_length, seq_max_elements, dict_max_pairs,
+            tuple(ignore_types or []), tuple(ignore_fields or []),
+            tuple(ignore_fields_pattern or []), ignore_fields_regex, depth_warning,
+        ))
+        if new_hash == self._config_hash:
+            return
+        self._config_hash = new_hash
+
         self.max_depth = max_depth
         self.maxstring = str_max_length
         self.maxlist = seq_max_elements
@@ -114,8 +126,11 @@ class CustomTruncator(reprlib.Repr):
         """字符串表示"""
         return self.truncate_str(obj)
 
-    def repr_iter(self, obj: Any, level: int, maxlen: int, method: Any) -> str:
-        """可迭代对象表示（对称截断）"""
+    def repr_iter(self, obj: Any, level: int, maxlen: int, method: object = None) -> str:
+        """可迭代对象表示（对称截断）
+
+        method 参数由 reprlib.Repr 父类传入（repr1 方法），本实现不使用。
+        """
         items = list(obj)
         if maxlen <= 0:
             return reprlib.Repr.repr(self, items)

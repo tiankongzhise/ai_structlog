@@ -69,7 +69,9 @@ class TestCompressBackends:
         assert result is False
 
     def test_lz4_backend_import_error(self, tmp_path):
-        """测试lz4不可用时"""
+        """测试lz4不可用时（模拟ImportError）"""
+        from unittest.mock import patch
+
         from tkzs_structlog.extensions.rotation import Lz4Backend
 
         backend = Lz4Backend()
@@ -79,9 +81,9 @@ class TestCompressBackends:
 
         dst_file = tmp_path / "test.log.lz4"
 
-        # lz4 未安装时应该返回 False
-        result = backend.compress(src_file, dst_file)
-        assert result is False
+        with patch.dict("sys.modules", {"lz4.frame": None}):
+            result = backend.compress(src_file, dst_file)
+            assert result is False
 
     def test_lz4_backend_extension(self):
         """测试lz4扩展名"""
@@ -91,7 +93,9 @@ class TestCompressBackends:
         assert backend.extension == ".lz4"
 
     def test_zstd_backend_import_error(self, tmp_path):
-        """测试zstd不可用时"""
+        """测试zstd不可用时（模拟ImportError）"""
+        from unittest.mock import patch
+
         from tkzs_structlog.extensions.rotation import ZstdBackend
 
         backend = ZstdBackend()
@@ -101,8 +105,9 @@ class TestCompressBackends:
 
         dst_file = tmp_path / "test.log.zst"
 
-        result = backend.compress(src_file, dst_file)
-        assert result is False
+        with patch.dict("sys.modules", {"zstandard": None}):
+            result = backend.compress(src_file, dst_file)
+            assert result is False
 
     def test_zstd_backend_extension(self):
         """测试zstd扩展名"""
@@ -1020,7 +1025,6 @@ class TestRotateWhenExtended:
 
     def test_should_rotate_by_time_daily_same_day(self, tmp_path):
         """测试同一天不触发轮转"""
-        from datetime import timedelta
 
         from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
 
@@ -1403,3 +1407,92 @@ class TestEmitEdgeCases:
         with patch.object(handler, "check_and_rotate") as mock_check:
             handler.emit(record)
             mock_check.assert_called_once()
+
+
+class TestCompressQueueFull:
+    """测试异步压缩信号量限流 — 回归验证 DEFECT-03"""
+
+    def test_queue_full_falls_back_to_sync(self, tmp_path):
+        """测试压缩队列满时降级为同步压缩"""
+        from unittest.mock import patch
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test content")
+
+        config = {
+            "file_path": str(tmp_path / "main.log"),
+            "custom_rotate": {
+                "enable": True,
+                "compress": True,
+                "compress_async": True,
+                "compress_concurrency": 1,
+            },
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 强制信号量为空（模拟队列满）
+        handler._compress_semaphore._value = 0
+
+        with patch.object(handler, "_do_compress") as mock_do_compress:
+            handler._compress_file(log_file)
+            # 队列满 → 同步压缩
+            mock_do_compress.assert_called_once()
+
+    def test_semaphore_released_after_async_submit(self, tmp_path):
+        """测试异步提交后回调正确释放信号量"""
+        from unittest.mock import MagicMock, patch
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test content")
+
+        config = {
+            "file_path": str(tmp_path / "main.log"),
+            "custom_rotate": {
+                "enable": True,
+                "compress": True,
+                "compress_async": True,
+                "compress_concurrency": 1,
+            },
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # Mock submit to return a future we control
+        mock_future = MagicMock()
+        with patch.object(handler._compress_executor, "submit", return_value=mock_future) as mock_submit:
+            with patch.object(handler, "_do_compress"):
+                handler._compress_file(log_file)
+                mock_submit.assert_called_once()
+                mock_future.add_done_callback.assert_called_once()
+
+    def test_runtime_error_on_submit_falls_back(self, tmp_path):
+        """测试线程池关闭时抛出 RuntimeError 降级为同步压缩"""
+        from unittest.mock import MagicMock, patch
+
+        from tkzs_structlog.extensions.rotation import CustomRotatingFileHandler
+
+        log_file = tmp_path / "test.log"
+        log_file.write_bytes(b"test content")
+
+        config = {
+            "file_path": str(tmp_path / "main.log"),
+            "custom_rotate": {
+                "enable": True,
+                "compress": True,
+                "compress_async": True,
+            },
+        }
+        handler = CustomRotatingFileHandler(config)
+
+        # 模拟 submit 抛出 RuntimeError
+        mock_executor = MagicMock()
+        mock_executor.submit.side_effect = RuntimeError("pool shutdown")
+        handler._compress_executor = mock_executor
+
+        with patch.object(handler, "_do_compress") as mock_do_compress:
+            handler._compress_file(log_file)
+            # 降级为同步
+            mock_do_compress.assert_called_once()

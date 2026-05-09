@@ -141,7 +141,7 @@ class Lz4Backend(CompressBackend):
     def compress(self, src_path: Path, dst_path: Path) -> bool:
         """Lz4 压缩"""
         try:
-            import lz4.frame
+            import lz4.frame  # type: ignore[import-untyped]
 
             with open(src_path, "rb") as f_in, lz4.frame.open(dst_path, "wb") as f_out:
                 f_out.write(f_in.read())
@@ -230,13 +230,16 @@ class CustomRotatingFileHandler(logging.Handler):
         self._last_rotate_time: float = 0
         self._compress_backend = get_compress_backend(self.compress_method)
 
-        # 异步压缩线程池
+        # 异步压缩线程池 + 限流信号量（队列满时降级同步压缩）
         self._compress_executor: concurrent.futures.ThreadPoolExecutor | None = None
+        self._compress_semaphore: threading.BoundedSemaphore | None = None
         if self.compress_async and self.compress:
+            max_queue = self.compress_concurrency + self.config.get("compress_max_queue", 10)
             self._compress_executor = concurrent.futures.ThreadPoolExecutor(
                 max_workers=self.compress_concurrency,
                 thread_name_prefix="log_compress",
             )
+            self._compress_semaphore = threading.BoundedSemaphore(max_queue)
 
     def _should_rotate_by_size(self) -> bool:
         """检查是否应该按大小轮转"""
@@ -347,14 +350,33 @@ class CustomRotatingFileHandler(logging.Handler):
             self.cleanup()
 
     def _compress_file(self, file_path: Path) -> None:
-        """压缩文件"""
+        """压缩文件
+
+        异步压缩时使用信号量限制队列深度，队列满时自动降级为同步压缩，
+        符合开发需求 §3.2.5 V2.1 边界8：线程池满→同步压缩。
+        """
         compress_ext = self._compress_backend.extension
         dst_path = file_path.with_suffix(file_path.suffix + compress_ext)
 
-        if self.compress_async and self._compress_executor:
+        if self.compress_async and self._compress_executor and self._compress_semaphore:
+            semaphore = self._compress_semaphore  # 局部变量帮助 mypy 类型窄化
+            # 尝试获取信号量（非阻塞），队列满则降级同步压缩
+            acquired = semaphore.acquire(blocking=False)
+            if not acquired:
+                logging.getLogger(__name__).warning(
+                    "Compress queue full (limit=%d), falling back to synchronous compress for %s",
+                    semaphore._initial_value if hasattr(semaphore, '_initial_value') else 0,
+                    file_path,
+                )
+                self._do_compress(file_path, dst_path)
+                return
+
             try:
-                self._compress_executor.submit(self._do_compress, file_path, dst_path)
+                future = self._compress_executor.submit(self._do_compress, file_path, dst_path)
+                future.add_done_callback(lambda _: semaphore.release())
             except RuntimeError:
+                # 线程池已关闭，释放信号量并降级同步压缩
+                semaphore.release()
                 logging.getLogger(__name__).warning(
                     "Compress thread pool unavailable, falling back to synchronous compress for %s",
                     file_path,
