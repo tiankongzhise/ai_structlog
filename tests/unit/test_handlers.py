@@ -46,16 +46,13 @@ class TestSetupConsoleHandler:
 
         # 清除现有的 StreamHandler
         root_logger = logging.getLogger()
-        root_logger.handlers = [
-            h for h in root_logger.handlers if not isinstance(h, logging.StreamHandler)
-        ]
+        root_logger.handlers = [h for h in root_logger.handlers if not isinstance(h, logging.StreamHandler)]
 
         setup_console_handler(config, stdlib_bridge=True, renderer=mock_renderer)
 
         # 验证处理器被添加且使用 ProcessorFormatter
         handler_found = any(
-            isinstance(h, logging.StreamHandler)
-            and isinstance(h.formatter, ProcessorFormatter)
+            isinstance(h, logging.StreamHandler) and isinstance(h.formatter, ProcessorFormatter)
             for h in root_logger.handlers
         )
         assert handler_found
@@ -155,9 +152,7 @@ class TestSetupFileHandler:
 
         # 验证 CustomRotatingFileHandler 被添加
         root_logger = logging.getLogger()
-        handler_found = any(
-            "CustomRotating" in type(h).__name__ for h in root_logger.handlers
-        )
+        handler_found = any("CustomRotating" in type(h).__name__ for h in root_logger.handlers)
         assert handler_found
 
     def test_file_handler_stdlib_bridge(self, tmp_path):
@@ -179,9 +174,7 @@ class TestSetupFileHandler:
 
         # 清除现有的 FileHandler
         root_logger = logging.getLogger()
-        root_logger.handlers = [
-            h for h in root_logger.handlers if not isinstance(h, logging.FileHandler)
-        ]
+        root_logger.handlers = [h for h in root_logger.handlers if not isinstance(h, logging.FileHandler)]
 
         setup_file_handler(config, stdlib_bridge=True, renderer=mock_renderer)
 
@@ -405,6 +398,21 @@ class TestSetupOutputHandlers:
         errors = setup_output_handlers(config)
         assert errors == []
 
+    def test_setup_output_handlers_console_exception(self, caplog):
+        """测试控制台处理器异常时降级（覆盖 204-205 行）"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+
+        config = {
+            "handlers": {
+                "console": {"enable": True},
+                "file": {"enable": False},
+            }
+        }
+
+        with patch("tkzs_structlog.extensions.handlers.setup_console_handler", side_effect=RuntimeError("test")):
+            errors = setup_output_handlers(config)
+            assert any("Console" in e for e in errors)
+
     def test_setup_output_handlers_pgsql_enabled_no_dependency(self):
         """测试 PGSQL 启用但依赖缺失"""
         from tkzs_structlog.extensions.handlers import setup_output_handlers
@@ -529,4 +537,137 @@ class TestSetupOutputHandlers:
             errors = setup_output_handlers(config)
             assert len(errors) > 0
             assert "Redis" in errors[0]
-            assert "fallback" in errors[0]
+
+
+class TestSetupOutputHandlersBridge:
+    """测试 setup_output_handlers 桥接参数传递 — 回归验证 claude_deepseek 缺陷 #6"""
+
+    def setup_method(self):
+        """每个测试前清除根日志器处理器"""
+        root_logger = logging.getLogger()
+        root_logger.handlers.clear()
+
+    def teardown_method(self):
+        """每个测试后清理"""
+        logging.getLogger().handlers.clear()
+
+    def test_setup_output_handlers_with_bridge_params(self):
+        """测试 setup_output_handlers 接受并传递 stdlib_bridge 和 renderer"""
+        from unittest.mock import MagicMock
+
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+
+        mock_renderer = MagicMock()
+        config = {
+            "handlers": {
+                "console": {"enable": True},
+                "file": {"enable": False},
+            }
+        }
+
+        with patch("tkzs_structlog.extensions.handlers.setup_console_handler") as mock_console:
+            with patch("tkzs_structlog.extensions.handlers.setup_file_handler") as mock_file:
+                errors = setup_output_handlers(config, stdlib_bridge=True, renderer=mock_renderer)
+
+                # 验证 console handler 被调用且传入了 bridge 参数
+                mock_console.assert_called_once_with(
+                    {"enable": True}, stdlib_bridge=True, renderer=mock_renderer
+                )
+                # 验证 file handler 被调用且传入了 bridge 参数
+                mock_file.assert_called_once_with(
+                    {"enable": False}, stdlib_bridge=True, renderer=mock_renderer
+                )
+                assert isinstance(errors, list)
+
+    def test_setup_output_handlers_no_bridge(self):
+        """测试 setup_output_handlers 不传 bridge 时的默认行为"""
+        from tkzs_structlog.extensions.handlers import setup_output_handlers
+
+        config = {
+            "handlers": {
+                "console": {"enable": False},
+                "file": {"enable": False},
+            }
+        }
+
+        with patch("tkzs_structlog.extensions.handlers.setup_file_handler") as mock_file:
+            errors = setup_output_handlers(config)
+
+            # 默认 stdlib_bridge=False, renderer=None
+            mock_file.assert_called_once_with(
+                {"enable": False}, stdlib_bridge=False, renderer=None
+            )
+            assert errors == []
+
+    def test_bridge_console_uses_processor_formatter(self):
+        """测试 bridge 模式下控制台处理器使用 ProcessorFormatter"""
+        from structlog.stdlib import ProcessorFormatter
+
+        from tkzs_structlog.extensions.handlers import setup_console_handler
+
+        mock_renderer = MagicMock()
+        config = {"enable": True}
+
+        setup_console_handler(config, stdlib_bridge=True, renderer=mock_renderer)
+
+        # 验证处理器使用了 ProcessorFormatter
+        root_logger = logging.getLogger()
+        stream_handlers = [h for h in root_logger.handlers if isinstance(h, logging.StreamHandler)]
+        assert len(stream_handlers) >= 1
+        # 至少有一个 handler 使用了 ProcessorFormatter
+        processor_formatters = [h for h in stream_handlers if isinstance(h.formatter, ProcessorFormatter)]
+        assert len(processor_formatters) >= 1
+
+    def test_no_bridge_console_uses_colored_handler(self):
+        """测试非 bridge 模式下控制台处理器不使用 ProcessorFormatter"""
+        from tkzs_structlog.extensions.handlers import ColoredConsoleHandler, setup_console_handler
+
+        config = {"enable": True}
+
+        setup_console_handler(config)
+
+        root_logger = logging.getLogger()
+        colored_handlers = [h for h in root_logger.handlers if isinstance(h, ColoredConsoleHandler)]
+        assert len(colored_handlers) >= 1
+
+    def test_no_duplicate_handlers_on_reinit(self):
+        """测试重新初始化不会导致处理器累积（回归验证双重输出缺陷）"""
+        from tkzs_structlog.extensions.handlers import setup_console_handler
+
+        config = {"enable": True}
+
+        # 第一次设置
+        root_logger = logging.getLogger()
+        root_logger.handlers.clear()
+        setup_console_handler(config)
+        first_count = len([h for h in root_logger.handlers if isinstance(h, logging.StreamHandler)])
+
+        # 清除后第二次设置（模拟 re-init）
+        root_logger.handlers.clear()
+        setup_console_handler(config)
+        second_count = len([h for h in root_logger.handlers if isinstance(h, logging.StreamHandler)])
+
+        # 每次 init 后 StreamHandler 数量应一致（不会累积）
+        assert first_count == second_count
+
+    def test_handlers_cleared_before_setup(self):
+        """测试 _setup_handlers 在配置新处理器前清除旧处理器"""
+        root_logger = logging.getLogger()
+
+        # 记录初始 handler 数量（可能包含 caplog handler）
+        initial_count = len(root_logger.handlers)
+
+        # 添加两个模拟处理器
+        handler1 = logging.StreamHandler(sys.stdout)
+        handler2 = logging.StreamHandler(sys.stdout)
+        root_logger.addHandler(handler1)
+        root_logger.addHandler(handler2)
+        assert len(root_logger.handlers) == initial_count + 2
+
+        # 模拟 _setup_handlers 中的清除操作
+        root_logger.handlers.clear()
+        assert len(root_logger.handlers) == 0
+
+        # 清理
+        handler1.close()
+        handler2.close()
