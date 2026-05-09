@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-tkzs-structlog is a configuration-driven automation tool for structlog that provides production-grade logging capabilities: log truncation, composite rotation, multi-environment support, sensitive data masking, and third-party output adapters (PostgreSQL, Redis, Kafka, Sentry). Configuration uses JSONC files with versioning (1.0 through 4.0).
+tkzs-structlog is a configuration-driven automation tool for structlog that provides production-grade logging capabilities: log truncation, composite rotation, multi-environment support, sensitive data masking, and third-party output adapters (PostgreSQL, Redis); Kafka and Sentry are planned. Configuration uses JSONC files with versioning (1.0 through 4.0).
 
 ## Common Commands
 
@@ -82,7 +82,7 @@ All custom exceptions inherit from `StructlogBaseError` with fields: `error_type
 ## Dependencies
 
 - Core: `structlog>=23.1.0`, `pyjson5>=2.0.0`, `pydantic>=2.0`, `psycopg2-binary>=2.9.12`
-- Optional: `lz4`, `zstandard` (compress), `redis`, `kafka-python`, `sentry-sdk`, `python-dotenv` (ecosystem), `watchdog`, `click` (CLI)
+- Optional: `lz4`, `zstandard` (compress), `redis`, `kafka-python` (planned), `sentry-sdk` (planned), `python-dotenv` (ecosystem), `watchdog`, `click` (CLI)
 - Dev: `pytest`, `pytest-cov`, `pytest-xdist`, `mypy`, `ruff`
 
 ## 及时更新
