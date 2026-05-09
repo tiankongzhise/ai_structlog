@@ -570,13 +570,9 @@ class TestSetupOutputHandlersBridge:
                 errors = setup_output_handlers(config, stdlib_bridge=True, renderer=mock_renderer)
 
                 # 验证 console handler 被调用且传入了 bridge 参数
-                mock_console.assert_called_once_with(
-                    {"enable": True}, stdlib_bridge=True, renderer=mock_renderer
-                )
+                mock_console.assert_called_once_with({"enable": True}, stdlib_bridge=True, renderer=mock_renderer)
                 # 验证 file handler 被调用且传入了 bridge 参数
-                mock_file.assert_called_once_with(
-                    {"enable": False}, stdlib_bridge=True, renderer=mock_renderer
-                )
+                mock_file.assert_called_once_with({"enable": False}, stdlib_bridge=True, renderer=mock_renderer)
                 assert isinstance(errors, list)
 
     def test_setup_output_handlers_no_bridge(self):
@@ -594,9 +590,7 @@ class TestSetupOutputHandlersBridge:
             errors = setup_output_handlers(config)
 
             # 默认 stdlib_bridge=False, renderer=None
-            mock_file.assert_called_once_with(
-                {"enable": False}, stdlib_bridge=False, renderer=None
-            )
+            mock_file.assert_called_once_with({"enable": False}, stdlib_bridge=False, renderer=None)
             assert errors == []
 
     def test_bridge_console_uses_processor_formatter(self):

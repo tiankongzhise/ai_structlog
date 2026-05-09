@@ -558,15 +558,21 @@ class TestTruncatorConfigHash:
 
         # 首次设置
         _truncator.set_config(
-            max_depth=3, str_max_length=256, seq_max_elements=50,
-            dict_max_pairs=30, depth_warning=True,
+            max_depth=3,
+            str_max_length=256,
+            seq_max_elements=50,
+            dict_max_pairs=30,
+            depth_warning=True,
         )
         hash1 = _truncator._config_hash
 
         # 相同配置再次设置 — 应该跳过（hash 不变）
         _truncator.set_config(
-            max_depth=3, str_max_length=256, seq_max_elements=50,
-            dict_max_pairs=30, depth_warning=True,
+            max_depth=3,
+            str_max_length=256,
+            seq_max_elements=50,
+            dict_max_pairs=30,
+            depth_warning=True,
         )
         hash2 = _truncator._config_hash
 
@@ -578,15 +584,21 @@ class TestTruncatorConfigHash:
         from tkzs_structlog.extensions.processors import _truncator
 
         _truncator.set_config(
-            max_depth=3, str_max_length=256, seq_max_elements=50,
-            dict_max_pairs=30, depth_warning=True,
+            max_depth=3,
+            str_max_length=256,
+            seq_max_elements=50,
+            dict_max_pairs=30,
+            depth_warning=True,
         )
         hash1 = _truncator._config_hash
 
         # 修改 max_depth
         _truncator.set_config(
-            max_depth=5, str_max_length=256, seq_max_elements=50,
-            dict_max_pairs=30, depth_warning=True,
+            max_depth=5,
+            str_max_length=256,
+            seq_max_elements=50,
+            dict_max_pairs=30,
+            depth_warning=True,
         )
         hash2 = _truncator._config_hash
 

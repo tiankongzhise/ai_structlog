@@ -365,7 +365,7 @@ class CustomRotatingFileHandler(logging.Handler):
             if not acquired:
                 logging.getLogger(__name__).warning(
                     "Compress queue full (limit=%d), falling back to synchronous compress for %s",
-                    semaphore._initial_value if hasattr(semaphore, '_initial_value') else 0,
+                    semaphore._initial_value if hasattr(semaphore, "_initial_value") else 0,
                     file_path,
                 )
                 self._do_compress(file_path, dst_path)
