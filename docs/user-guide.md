@@ -417,11 +417,11 @@ tkzs_structlog.init_structlog(enable_hotreload=True)
 连接信息从 `.env` 文件读取：
 
 ```
-PGSQL_HOST=127.0.0.1
-PGSQL_PORT=5432
-PGSQL_USER=postgres
-PGSQL_PASSWORD=secret
-PGSQL_DB=logs
+PG_HOST=127.0.0.1
+PG_PORT=5432
+PG_USER=postgres
+PG_PASSWORD=secret
+PG_DB=logs
 ```
 
 ### 12.2 Redis
