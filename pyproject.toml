@@ -108,7 +108,8 @@ default = true
 name = "testpypi"
 url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
-default = false
+explicit = true 
+default = false 
 
 # 修复：UV 新版用 dev-dependencies 替代废弃字段
 [dependency-groups]
