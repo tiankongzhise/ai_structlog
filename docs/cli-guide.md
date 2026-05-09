@@ -112,7 +112,7 @@ tkzs-structlog version
 **输出示例：**
 
 ```
-tkzs-structlog: 4.0.0
+tkzs-structlog: x.y.z
 Supported config versions: 1.0, 2.0, 2.1, 3.0, 4.0
 ```
 
