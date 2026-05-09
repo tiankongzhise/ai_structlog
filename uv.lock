@@ -936,7 +936,6 @@ wheels = [
 name = "tkzs-structlog"
 source = { editable = "." }
 dependencies = [
-    { name = "psycopg2-binary" },
     { name = "pydantic" },
     { name = "pyjson5" },
     { name = "structlog" },
@@ -998,7 +997,6 @@ requires-dist = [
     { name = "lz4", marker = "extra == 'compress'", specifier = ">=4.3.2" },
     { name = "mypy", marker = "extra == 'all'", specifier = ">=1.7.1" },
     { name = "mypy", marker = "extra == 'test'", specifier = ">=1.7.1" },
-    { name = "psycopg2-binary", specifier = ">=2.9.12" },
     { name = "psycopg2-binary", marker = "extra == 'all'", specifier = ">=2.9.9" },
     { name = "psycopg2-binary", marker = "extra == 'ecosystem'", specifier = ">=2.9.9" },
     { name = "pydantic", specifier = ">=2.0" },
