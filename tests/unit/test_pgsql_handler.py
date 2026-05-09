@@ -1,6 +1,5 @@
 """PGSQL 处理器模块测试（完整覆盖）"""
 
-import threading
 import time
 from unittest.mock import MagicMock, patch
 
@@ -294,6 +293,7 @@ class TestPGSQLHandlerInitializePostPool:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
         PGSQLHandler.reset_instance()
 
     @patch("tkzs_structlog.extensions.pgsql_handler.is_pgsql_available")
@@ -341,6 +341,7 @@ class TestPGSQLHandlerTestConnection:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
         PGSQLHandler.reset_instance()
 
     def test_test_connection_success(self):
@@ -384,6 +385,7 @@ class TestPGSQLHandlerCreateTable:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
         PGSQLHandler.reset_instance()
 
     def test_create_table_already_created(self):
@@ -444,6 +446,7 @@ class TestPGSQLHandlerWorker:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
         PGSQLHandler.reset_instance()
 
     def test_worker_not_running(self):
@@ -482,6 +485,7 @@ class TestPGSQLHandlerWorker:
         handler._batch = [{"level": "INFO", "message": "test", "logger": "test", "extra": {}}]
 
         raised_empty = False
+
         def raise_empty(*args, **kwargs):
             nonlocal raised_empty
             if raised_empty:
@@ -508,6 +512,7 @@ class TestPGSQLHandlerWorker:
         handler._batch = []
 
         raised_error = False
+
         def raise_error(*args, **kwargs):
             nonlocal raised_error
             if raised_error:
@@ -534,6 +539,7 @@ class TestPGSQLHandlerWorker:
         handler._batch = []
 
         call_count = 0
+
         def get_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -582,6 +588,7 @@ class TestPGSQLHandlerFlushBatch:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
         PGSQLHandler.reset_instance()
 
     def test_flush_batch_empty(self):
@@ -659,6 +666,7 @@ class TestPGSQLHandlerEmitEdgeCases:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
         PGSQLHandler.reset_instance()
 
     def test_emit_queue_full(self, caplog):
@@ -685,6 +693,7 @@ class TestPGSQLHandlerShutdownEdgeCases:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.pgsql_handler import PGSQLHandler
+
         PGSQLHandler.reset_instance()
 
     def test_shutdown_with_thread(self):

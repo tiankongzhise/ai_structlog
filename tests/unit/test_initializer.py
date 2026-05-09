@@ -223,9 +223,7 @@ class TestStructlogInitializerSetupProcessors:
             "min_level": "INFO",
             "processors": ["structlog.processors.TimeStamper"],
             "bridge_std_logging": False,
-            "extensions": {
-                "log_truncate": {"enable": True, "max_length": 100}
-            },
+            "extensions": {"log_truncate": {"enable": True, "max_length": 100}},
         }
 
         initializer.init(config=config)
@@ -238,9 +236,7 @@ class TestStructlogInitializerSetupProcessors:
             "min_level": "INFO",
             "processors": ["structlog.processors.TimeStamper"],
             "bridge_std_logging": False,
-            "extensions": {
-                "sensitive_fields": {"fields": ["password"]}
-            },
+            "extensions": {"sensitive_fields": {"fields": ["password"]}},
         }
 
         initializer.init(config=config)
@@ -253,9 +249,7 @@ class TestStructlogInitializerSetupProcessors:
             "min_level": "INFO",
             "processors": ["structlog.processors.TimeStamper"],
             "bridge_std_logging": False,
-            "extensions": {
-                "filter_rules": {"exclude": ["test"]}
-            },
+            "extensions": {"filter_rules": {"exclude": ["test"]}},
         }
 
         initializer.init(config=config)

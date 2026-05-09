@@ -353,6 +353,7 @@ class TestEnvLoaderDotenvImportError:
         # 确保 redis 模块可用
         try:
             import redis  # noqa: F401
+
             importlib.reload(env_loader)
             result = env_loader.is_redis_available()
             assert result is True

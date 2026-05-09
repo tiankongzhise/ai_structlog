@@ -274,12 +274,12 @@ class TestSetupRedisHandler:
         mock_handler.initialize.assert_called_once()
 
 
-
 class TestRedisHandlerWorker:
     """测试工作线程（使用 mock）"""
 
     def teardown_method(self):
         from tkzs_structlog.extensions.redis_handler import RedisHandler
+
         RedisHandler.reset_instance()
 
     def test_worker_not_running(self):
@@ -327,7 +327,6 @@ class TestRedisHandlerWorker:
 
         assert len(handler._batch) == 0
 
-
     @patch("tkzs_structlog.extensions.redis_handler.logger")
     @patch("tkzs_structlog.extensions.redis_handler.is_redis_available")
     @patch("tkzs_structlog.extensions.redis_handler.get_redis_config")
@@ -366,9 +365,7 @@ class TestRedisHandlerWorker:
     @patch("tkzs_structlog.extensions.redis_handler.logger")
     @patch("tkzs_structlog.extensions.redis_handler.is_redis_available")
     @patch("tkzs_structlog.extensions.redis_handler.get_redis_config")
-    def test_initialize_success_with_thread_mock(
-        self, mock_config, mock_available, mock_logger, mock_thread
-    ):
+    def test_initialize_success_with_thread_mock(self, mock_config, mock_available, mock_logger, mock_thread):
         """测试成功初始化（mock 线程，覆盖 95-112 行）"""
         from tkzs_structlog.extensions.redis_handler import RedisHandler
 
@@ -406,6 +403,7 @@ class TestRedisHandlerWorkerCoverage:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.redis_handler import RedisHandler
+
         RedisHandler.reset_instance()
 
     @patch("tkzs_structlog.extensions.redis_handler.logger")
@@ -571,6 +569,7 @@ class TestRedisHandlerFlushBatchEdgeCases:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.redis_handler import RedisHandler
+
         RedisHandler.reset_instance()
 
     def test_flush_batch_with_json_encoding(self):
@@ -599,6 +598,7 @@ class TestRedisHandlerFlushBatchEdgeCases:
 
     def teardown_method(self):  # noqa: F811
         from tkzs_structlog.extensions.redis_handler import RedisHandler
+
         RedisHandler.reset_instance()
 
     def test_flush_batch_empty(self):
@@ -673,6 +673,7 @@ class TestRedisHandlerEmitEdgeCases:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.redis_handler import RedisHandler
+
         RedisHandler.reset_instance()
 
     def test_emit_queue_full(self, caplog):
@@ -699,6 +700,7 @@ class TestRedisHandlerShutdownEdgeCases:
 
     def teardown_method(self):
         from tkzs_structlog.extensions.redis_handler import RedisHandler
+
         RedisHandler.reset_instance()
 
     def test_shutdown_with_thread(self):

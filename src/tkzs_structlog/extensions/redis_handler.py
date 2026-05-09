@@ -105,9 +105,7 @@ class RedisHandler:
 
             self._client.ping()
             self._running = True
-            self._worker_thread = threading.Thread(
-                target=self._worker, daemon=True
-            )
+            self._worker_thread = threading.Thread(target=self._worker, daemon=True)
             self._worker_thread.start()
             logger.info("Redis handler initialized successfully")
 
@@ -130,9 +128,7 @@ class RedisHandler:
                 self._batch.append(log_entry)
 
                 batch_size = self.config.get("batch_size", 100)
-                if len(self._batch) >= batch_size or (
-                    time.time() - self._last_flush > timeout
-                ):
+                if len(self._batch) >= batch_size or (time.time() - self._last_flush > timeout):
                     self._flush_batch(key)
 
             except queue.Empty:
