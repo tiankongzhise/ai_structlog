@@ -51,6 +51,7 @@ Handles configuration loading, validation, and parsing:
 - `validator.py` - Pydantic v2 models for each config version (`StructlogV1Config` through `StructlogV4Config`), `validate_config()`
 - `parser.py` - Parses validated config into processor/handler parameters
 - `defaults.py` - `DEFAULT_CONFIG` and `merge_config()` for fallback behavior
+- `env_loader.py` - Loads PGSQL/Redis connection settings from `.env` files
 
 Config versioning: 1.0 (basic), 2.0 (truncate/rotation/masking), 2.1 (performance), 3.0 (CLI/hot-reload), 4.0 (ecosystem adapters). Higher versions are backward compatible.
 
