@@ -3,7 +3,7 @@
 ## Project Structure
 - Package source: `src/tkzs_structlog/` (hatchling expects this layout)
 - Config versions 1.0-4.0, all backward compatible
-- Entry points: `init_structlog(config_path=None)`, `get_logger(name=None)`
+- Entry points: `init_structlog(config_path=None, config=None, enable_hotreload=False, enable_trace_id=None, **kwargs)`, `get_logger(name=None, **kwargs)`
 - Config file format: JSONC (JSON with `//` comments), loaded as `structlog_config.json` or `structlog_config.{env}.json`
 - Multi-env: set `STRUCTLOG_ENV=prod` to load `structlog_config.prod.json`
 
