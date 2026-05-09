@@ -109,8 +109,8 @@
 | `filter_rules` | `object` | `{}` | 日志过滤规则（`exclude`/`include`） |
 | `config_hot_reload` | `bool` | `false` | 是否启用配置热重载 |
 | `elk_compatible` | `bool` | `false` | 是否启用 ELK 兼容格式 |
-| `sentry_enable` | `bool` | `false` | 是否启用 Sentry 集成 |
-| `sentry_dsn` | `string \| null` | `null` | Sentry DSN |
+| `sentry_enable` | `bool` | `false` | 是否启用 Sentry 集成（计划中） |
+| `sentry_dsn` | `string \| null` | `null` | Sentry DSN（计划中） |
 
 ## 内置默认配置
 

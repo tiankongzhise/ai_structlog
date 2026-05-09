@@ -172,8 +172,8 @@ logger.info("module_loaded")
     },
     "config_hot_reload": false,   // 配置热重载
     "elk_compatible": false,
-    "sentry_enable": false,
-    "sentry_dsn": null
+    "sentry_enable": false,       // Sentry 集成（计划中）
+    "sentry_dsn": null            // Sentry DSN（计划中）
   }
 }
 ```
@@ -448,18 +448,18 @@ REDIS_PASSWORD=
 REDIS_DB=0
 ```
 
-### 12.3 Sentry
+### 12.3 Sentry（计划中）
+
+Sentry 集成计划在未来版本实现，配置字段已预留：
 
 ```jsonc
 {
   "extensions": {
-    "sentry_enable": true,
-    "sentry_dsn": "https://xxx@sentry.io/xxx"
+    "sentry_enable": false,   // 暂不可用
+    "sentry_dsn": null
   }
 }
 ```
-
-仅 ERROR/CRITICAL 级别发送，Sentry 不可用不影响主流程。
 
 ### 12.4 降级策略
 
@@ -467,7 +467,6 @@ REDIS_DB=0
 |--------|----------|
 | PGSQL | 连接失败 → 文件输出 |
 | Redis | 连接失败 → 文件输出 |
-| Sentry | 仅 ERROR/CRITICAL 发送，不可用跳过 |
 
 ## 13. 异常处理
 

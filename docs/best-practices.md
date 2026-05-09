@@ -253,7 +253,7 @@ project/
 | `console.enable` | true | true | false |
 | `file.enable` | false | true | true |
 | `file.custom_rotate.compress` | false | true | true |
-| `sentry_enable` | false | false | true |
+| `sentry_enable` | false | false | false（计划中）|
 
 ### 5.3 环境变量
 
