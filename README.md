@@ -6,7 +6,7 @@
 [![Test Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://pytest-cov.readthedocs.io/)
 [![License](https://img.shields.io/badge/license-LGPL%20v2.1-blue.svg)](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)
 
-**配置驱动、零代码侵入**的 Structlog 自动化配置工具，支持日志截断、复合轮转、多环境适配、敏感信息脱敏、热重载、CLI 工具及第三方输出集成（PGSQL/Redis/Kafka/Sentry）。
+**配置驱动、零代码侵入**的 Structlog 自动化配置工具，支持日志截断、复合轮转、多环境适配、敏感信息脱敏、热重载、CLI 工具及第三方输出集成（PGSQL/Redis）。
 
 ## 特性一览
 
@@ -16,7 +16,7 @@
 | V2.0 | 日志智能截断、自定义复合轮转、多环境、脱敏、上下文绑定 | [用户手册](docs/user-guide.md) |
 | V2.1 | 截断类型缓存、通配符/正则排除、深度警告；异步压缩、原子重命名、可插拔压缩后端 | [用户手册](docs/user-guide.md) |
 | V3.0 | 配置热重载、CLI 工具、完整类型提示 | [CLI 指南](docs/cli-guide.md) |
-| V4.0 | PGSQL/Redis/Kafka/Sentry 集成 | [生态集成](docs/user-guide.md#生态集成-v40) |
+| V4.0 | PGSQL/Redis 集成 | [生态集成](docs/user-guide.md#生态集成-v40) |
 
 ## 快速开始
 

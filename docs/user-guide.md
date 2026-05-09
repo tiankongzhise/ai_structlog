@@ -44,7 +44,7 @@ pip install "tkzs-structlog[all]"
 # CLI 工具 + 热重载
 pip install "tkzs-structlog[cli]"
 
-# 第三方输出（PGSQL/Redis/Kafka/Sentry）
+# 第三方输出（PGSQL/Redis）
 pip install "tkzs-structlog[ecosystem]"
 
 # 扩展压缩后端（lz4/zstd）
@@ -468,7 +468,6 @@ REDIS_DB=0
 | PGSQL | 连接失败 → 文件输出 |
 | Redis | 连接失败 → 文件输出 |
 | Sentry | 仅 ERROR/CRITICAL 发送，不可用跳过 |
-| Kafka | 发送失败重试 3 次后降级文件 |
 
 ## 13. 异常处理
 
