@@ -85,6 +85,18 @@ DEFAULT_CONFIG_V21: dict[str, Any] = {
     },
 }
 
+# V3.0 CLI/热重载配置（结构同 V2.1）
+DEFAULT_CONFIG_V3: dict[str, Any] = {
+    **DEFAULT_CONFIG_V21,
+    "version": "3.0",
+}
+
+# V4.0 生态配置（结构同 V3.0）
+DEFAULT_CONFIG_V4: dict[str, Any] = {
+    **DEFAULT_CONFIG_V3,
+    "version": "4.0",
+}
+
 # 当前最新版本默认配置
 DEFAULT_CONFIG = DEFAULT_CONFIG_V21
 
@@ -102,6 +114,8 @@ def get_default_config(version: str | None = None) -> dict[str, Any]:
         "1.0": DEFAULT_CONFIG_V1,
         "2.0": DEFAULT_CONFIG_V2,
         "2.1": DEFAULT_CONFIG_V21,
+        "3.0": DEFAULT_CONFIG_V3,
+        "4.0": DEFAULT_CONFIG_V4,
     }
 
     if version is None:
