@@ -39,12 +39,12 @@ def _get_process_lock(file_path: Path) -> tuple[Any, bool]:
             msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
             return lock_file, True
         except (OSError, IOError, ImportError):
-            if "lock_file" in locals():
+            if "lock_file" in locals():  # pragma: no cover
                 try:
                     lock_file.close()  # pragma: no cover
                 except Exception:  # pragma: no cover
                     pass  # pragma: no cover
-            return None, False
+            return None, False  # pragma: no cover
     else:  # pragma: no cover
         try:
             import fcntl  # pragma: no cover
