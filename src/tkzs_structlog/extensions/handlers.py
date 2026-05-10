@@ -9,9 +9,14 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from tkzs_structlog.exceptions import StructlogHandlerError
+
+if TYPE_CHECKING:
+    _ColoredConsoleBase: TypeAlias = logging.StreamHandler[Any]
+else:
+    _ColoredConsoleBase = logging.StreamHandler
 
 
 def setup_console_handler(
@@ -136,7 +141,7 @@ def setup_file_handler(
             )
 
 
-class ColoredConsoleHandler(logging.StreamHandler[Any]):
+class ColoredConsoleHandler(_ColoredConsoleBase):
     """带颜色的控制台处理器"""
 
     # ANSI 颜色代码

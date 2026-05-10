@@ -114,9 +114,11 @@ class TestSetupFileHandler:
             "file_path": str(tmp_path / "test|invalid.log"),
         }
 
-        # 应该抛出异常
-        with pytest.raises((StructlogHandlerError, OSError)):
-            setup_file_handler(config)
+        with patch("tkzs_structlog.extensions.handlers.logging.FileHandler", side_effect=OSError("invalid path")):
+            with pytest.raises(StructlogHandlerError) as exc_info:
+                setup_file_handler(config)
+
+        assert "Failed to create file handler" in str(exc_info.value)
 
     def test_file_handler_custom_encoding(self, tmp_path):
         """测试自定义编码"""

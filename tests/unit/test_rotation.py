@@ -3,6 +3,7 @@
 import gzip
 import logging
 import os
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -1307,6 +1308,56 @@ class TestProcessLockEdgeCases:
         from tkzs_structlog.extensions.rotation import _release_process_lock
 
         _release_process_lock(None)
+
+    def test_get_process_lock_win32_success(self, monkeypatch, tmp_path):
+        """Cover the Windows process-lock success branch on non-Windows CI."""
+        import tkzs_structlog.extensions.rotation as rotation
+        from tkzs_structlog.extensions.rotation import _get_process_lock, _release_process_lock
+
+        mock_msvcrt = MagicMock()
+        monkeypatch.setattr(rotation.sys, "platform", "win32")
+        monkeypatch.setitem(sys.modules, "msvcrt", mock_msvcrt)
+
+        lock_file, is_locked = _get_process_lock(tmp_path / "test.log")
+
+        assert is_locked is True
+        assert lock_file is not None
+        mock_msvcrt.locking.assert_called()
+        _release_process_lock(lock_file)
+
+    def test_get_process_lock_win32_failure_closes_file(self, monkeypatch, tmp_path):
+        """Cover the Windows process-lock failure fallback."""
+        import tkzs_structlog.extensions.rotation as rotation
+        from tkzs_structlog.extensions.rotation import _get_process_lock
+
+        mock_msvcrt = MagicMock()
+        mock_msvcrt.locking.side_effect = OSError("locked")
+        mock_lock_file = MagicMock()
+        monkeypatch.setattr(rotation.sys, "platform", "win32")
+        monkeypatch.setitem(sys.modules, "msvcrt", mock_msvcrt)
+
+        with patch("builtins.open", return_value=mock_lock_file):
+            lock_file, is_locked = _get_process_lock(tmp_path / "test.log")
+
+        assert lock_file is None
+        assert is_locked is False
+        mock_lock_file.close.assert_called_once()
+
+    def test_release_process_lock_win32_unlocks_file(self, monkeypatch):
+        """Cover the Windows unlock branch on non-Windows CI."""
+        import tkzs_structlog.extensions.rotation as rotation
+        from tkzs_structlog.extensions.rotation import _release_process_lock
+
+        mock_msvcrt = MagicMock()
+        mock_lock_file = MagicMock()
+        mock_lock_file.fileno.return_value = 7
+        monkeypatch.setattr(rotation.sys, "platform", "win32")
+        monkeypatch.setitem(sys.modules, "msvcrt", mock_msvcrt)
+
+        _release_process_lock(mock_lock_file)
+
+        mock_msvcrt.locking.assert_called_once_with(7, mock_msvcrt.LK_UNLCK, 1)
+        mock_lock_file.close.assert_called_once()
 
 
 class TestCleanupEdgeCases:

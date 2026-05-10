@@ -159,6 +159,15 @@ class TestLoadConfigFile:
         finally:
             Path(path).unlink()
 
+    def test_load_invalid_utf8_uses_replacement_fallback(self, tmp_path):
+        """Invalid UTF-8 bytes are reread with replacement instead of failing early."""
+        config_file = tmp_path / "config.json"
+        config_file.write_bytes(b'{"version": "\xff"}')
+
+        config = load_config_file(config_file)
+
+        assert config == {"version": "\ufffd"}
+
 
 class TestLoadConfig:
     """测试配置加载（多级降级）"""
