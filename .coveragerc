@@ -12,3 +12,15 @@ omit =
   */test_*.py
   */__init__.py
   */_version.py
+
+[report]
+fail_under = 100
+precision = 2
+show_missing = true
+skip_covered = true
+
+[xml]
+output = coverage.xml
+
+[html]
+directory = htmlcov

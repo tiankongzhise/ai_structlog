@@ -122,6 +122,7 @@ dev = [
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+extend-exclude = ["src/tkzs_structlog/_version.py"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I"]

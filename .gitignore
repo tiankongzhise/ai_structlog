@@ -1,6 +1,8 @@
 # Python-generated files
 .*
 !.gitignore
+!.github/
+!.github/**
 __pycache__/
 *.py[oc]
 build/
@@ -19,6 +21,7 @@ wheels/
 htmlcov/
 
 .coverage
+coverage.xml
 test_result.txt
 
 .workbuddy/
